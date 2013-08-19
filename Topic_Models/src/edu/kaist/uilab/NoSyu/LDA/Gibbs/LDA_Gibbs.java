@@ -410,10 +410,8 @@ public class LDA_Gibbs
 		
 		try
 		{
-//			this.M_DT.writeMatrixToCSVFile("C_DT_" + date.getTime() + ".csv");
 			this.M_DT.writeMatrixToCSVFile("C_DT_" + version + "_" + this.TopicNum + "__" + iter + ".csv");
 			this.M_TW.writeMatrixToCSVFile("C_WT_" + version + "_" + this.TopicNum + "__" + iter + ".csv", this.Vocabulary);
-			// 기존 것이 column으로 되어 있으니 그냥 transpose 후 진행
 			this.M_TW.transpose().writeRankingFile("C_WT_R_" + version + "_" + this.TopicNum + "__" + iter + ".csv", this.Vocabulary, this.ranking_num);
 			
 			List<String> Document_name = new ArrayList<String>();
@@ -423,7 +421,7 @@ public class LDA_Gibbs
 			}
 			this.M_DT.writeRankingFile("C_DT_R_" + version + "_" + this.TopicNum + "__" + iter + ".csv", Document_name, this.ranking_num);
 			
-			// alpha_beta 찍기
+			// alpha_beta
 			PrintWriter out = new PrintWriter(new FileWriter(new File("Alpha_Beta_" + version + "_" + this.TopicNum + "__" + iter + ".csv")));
 			out.print(this.alpha_vec[0]);
 			for(int alpha_idx = 1; alpha_idx < this.TopicNum ; alpha_idx++)
