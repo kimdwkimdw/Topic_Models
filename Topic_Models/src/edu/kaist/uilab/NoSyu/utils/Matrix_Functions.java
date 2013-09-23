@@ -1,11 +1,11 @@
 package edu.kaist.uilab.NoSyu.utils;
 
+import org.ejml.data.DenseMatrix64F;
+import org.ejml.ops.CommonOps;
 import org.ejml.simple.SimpleMatrix;
 import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
 import org.apache.commons.math3.distribution.GammaDistribution;
-
-import edu.kaist.uilab.NoSyu.DoHDP.Document_Hadoop;
 
 public class Matrix_Functions 
 {
@@ -26,6 +26,25 @@ public class Matrix_Functions
 		
 		return fold_input_matrix;
 	}
+	
+	/*
+	 * Fold a matrix by column
+	 * ex)
+	 * input matrix 2x3 => output matrix 2x1 where each element is sum of row vector
+	 * */
+	public static SimpleMatrix Fold_Col(SimpleMatrix input_matrix)
+	{
+		int numRows = input_matrix.numRows();
+		
+		SimpleMatrix fold_input_matrix = new SimpleMatrix(numRows, 1);
+		for (int row_idx = 0 ; row_idx < numRows ; row_idx++)
+		{
+			fold_input_matrix.set(row_idx, 0, input_matrix.extractVector(true, row_idx).elementSum());
+		}
+		
+		return fold_input_matrix;
+	}
+	
 	
 	/*
 	 * Flip and Cumulative sum for vector
@@ -62,6 +81,45 @@ public class Matrix_Functions
 			temp_row_vec = temp_row_vec.plus(target_vector);
 			target_matrix.insertIntoThis(row_idx, 0, temp_row_vec);
 		}
+	}
+	
+	/*
+	 * Element multiply target_vector and column vector in target_matrix
+	 * */
+	public static SimpleMatrix Mul_Matrix_row_vector(SimpleMatrix target_matrix, SimpleMatrix target_vector)
+	{
+		int Numrow = target_matrix.numRows();
+		int Numcol = target_matrix.numCols();
+		SimpleMatrix output_matrix = new SimpleMatrix(Numrow, Numcol);
+		SimpleMatrix temp_row_vec = null;
+		
+		for(int row_idx = 0 ; row_idx < Numrow ; row_idx++)
+		{
+			temp_row_vec = target_matrix.extractVector(true, row_idx);
+			output_matrix.insertIntoThis(row_idx, 0, elementwise_mul_two_matrix(temp_row_vec, target_vector));
+		}
+		
+		return output_matrix;
+	}
+	
+	/*
+	 * Sum target_vector and column vector in target_matrix
+	 * */
+	public static SimpleMatrix Sum_Matrix_col_vector(SimpleMatrix target_matrix, SimpleMatrix target_vector)
+	{
+		int Numcol = target_matrix.numCols();
+		int Numrow = target_matrix.numRows();
+		SimpleMatrix output_matrix = new SimpleMatrix(Numrow, Numcol);
+		SimpleMatrix temp_col_vec = null;
+		
+		for(int col_idx = 0 ; col_idx < Numcol ; col_idx++)
+		{
+			temp_col_vec = target_matrix.extractVector(false, col_idx);
+			temp_col_vec = temp_col_vec.plus(target_vector);
+			output_matrix.insertIntoThis(0, col_idx, temp_col_vec);
+		}
+		
+		return output_matrix;
 	}
 	
 	
@@ -130,6 +188,43 @@ public class Matrix_Functions
 			{
 				Psi_one = Gamma.digamma(input_matrix.get(row_idx, col_idx));
 				output_matrix.set(row_idx, col_idx, Psi_one - Fold_sum_input_matrix.get(0, col_idx));
+			}
+		}
+		
+		// return it
+		return output_matrix;
+	}
+	
+	
+	/*
+	 * Compute Dirichlet expectation for input matrix when collapsed one is column
+	 * Compute_Dirichlet_Expectation_col(input_matrix);
+	 * === Compute_Dirichlet_Expectation(input_matrix.transpose()).transpose();
+	 * */
+	public static SimpleMatrix Compute_Dirichlet_Expectation_col(SimpleMatrix input_matrix)
+	{
+		SimpleMatrix Fold_sum_input_matrix = Fold_Col(input_matrix);
+		int input_matrix_num_row = input_matrix.numRows();
+		int input_matrix_num_col = input_matrix.numCols();
+		SimpleMatrix output_matrix = new SimpleMatrix(input_matrix_num_row, input_matrix_num_col);
+		double Psi_one = 0;
+		
+		// Compute Digamma for each element in Fold_sum_input_matrix
+		for(int row_idx = 0 ; row_idx < input_matrix_num_row ; row_idx++)
+		{
+			Psi_one = Gamma.digamma(Fold_sum_input_matrix.get(row_idx, 0));
+			Fold_sum_input_matrix.set(row_idx, 0, Psi_one);
+		}
+		
+		// Compute Digamma for each element in input_matrix with Fold_sum_input_matrix
+		double row_sum_element = 0.0;
+		for(int row_idx = 0 ; row_idx < input_matrix_num_row ; row_idx++)
+		{
+			row_sum_element = Fold_sum_input_matrix.get(row_idx, 0);
+			for(int col_idx = 0 ; col_idx < input_matrix_num_col ; col_idx++)
+			{
+				Psi_one = Gamma.digamma(input_matrix.get(row_idx, col_idx));
+				output_matrix.set(row_idx, col_idx, Psi_one - row_sum_element);
 			}
 		}
 		
@@ -325,6 +420,30 @@ public class Matrix_Functions
 		
 		return changes / ((double)(Numrow * Numcol));
 	}
+	
+	
+	/*
+	 * Elementwise multiplication between two matrix
+	 * */
+	public static SimpleMatrix elementwise_mul_two_matrix(SimpleMatrix first_m, SimpleMatrix second_m)
+	{
+		int Numrow = first_m.numRows();
+		int Numcol = first_m.numCols();
+		
+		SimpleMatrix outputmatrix = new SimpleMatrix(Numrow, Numcol);
+		
+		for(int row_idx = 0 ; row_idx < Numrow ; row_idx++)
+		{
+			for(int col_idx = 0 ; col_idx < Numcol ; col_idx++)
+			{
+				outputmatrix.set(row_idx, col_idx, 
+						first_m.get(row_idx, col_idx) * second_m.get(row_idx, col_idx));
+			}
+		}
+		
+		return outputmatrix;
+	}
+	
 	
 //	/*
 //	 * Set row vector to target matrix with row index => Same as insertIntoThis function
