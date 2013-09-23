@@ -5,8 +5,6 @@ import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
 import org.apache.commons.math3.distribution.GammaDistribution;
 
-import edu.kaist.uilab.NoSyu.DoHDP.Document_Hadoop;
-
 public class Matrix_Functions 
 {
 	/*
