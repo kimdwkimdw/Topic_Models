@@ -66,7 +66,7 @@ public class oLDA_Main
 			SimpleMatrix doc_Expe_Lambda_kv = new SimpleMatrix(TopicNum, VocaNum_for_this_document);	// K x V'
 			
 			// Get Expectation_Lambda_kv which matches vocabulary index in this document
-			HashMap<Integer, Integer> voca_idx_to_real_voca_idx = one_doc.get_voca_idx_to_real_voca_idx();
+			ArrayList<Integer> voca_idx_to_real_voca_idx = one_doc.get_voca_idx_to_real_voca_idx();
 			for(int doc_Lambda_kv_col_idx = 0 ; doc_Lambda_kv_col_idx < VocaNum_for_this_document ; doc_Lambda_kv_col_idx++)
 			{
 				doc_Expe_Lambda_kv.insertIntoThis(0, doc_Lambda_kv_col_idx, Expectation_Lambda_kv.extractVector(false, voca_idx_to_real_voca_idx.get(doc_Lambda_kv_col_idx)));
@@ -219,7 +219,7 @@ public class oLDA_Main
 
 		int VocaNum_for_this_document = target_document.get_voca_cnt();
 		int real_voca_idx = 0;
-		HashMap<Integer, Integer> voca_idx_to_real_voca_idx = target_document.get_voca_idx_to_real_voca_idx();
+		ArrayList<Integer> voca_idx_to_real_voca_idx = target_document.get_voca_idx_to_real_voca_idx();
 		for(int sum_ss_lambda_row_idx = 0 ; sum_ss_lambda_row_idx < VocaNum_for_this_document ; sum_ss_lambda_row_idx++)
 		{
 			real_voca_idx = voca_idx_to_real_voca_idx.get(sum_ss_lambda_row_idx);

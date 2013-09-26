@@ -1,7 +1,5 @@
 package edu.kaist.uilab.NoSyu.utils;
 
-import org.ejml.data.DenseMatrix64F;
-import org.ejml.ops.CommonOps;
 import org.ejml.simple.SimpleMatrix;
 import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
