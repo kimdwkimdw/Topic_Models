@@ -5,13 +5,13 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Random;
-import java.util.Vector;
 
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
@@ -25,7 +25,6 @@ import org.ejml.simple.SimpleMatrix;
 
 import com.google.gson.Gson;
 
-import edu.kaist.uilab.NoSyu.LDA.Online.Document_LDA_Online;
 import edu.kaist.uilab.NoSyu.utils.Matrix_Functions;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
 
@@ -39,8 +38,6 @@ public class LDA_DOnline_Driver
 	private static int Max_Iter;	// Maximum number of iteration for E_Step
 	private static double convergence_limit = 1e-4;
 	
-	private static Random rand;	// Random object
-	
 	private static SimpleMatrix Lambda_kv;				// lambda
 	
 	private static SimpleMatrix alpha;		// Hyper-parameter for theta
@@ -52,50 +49,59 @@ public class LDA_DOnline_Driver
 	private static String BOW_file_path = null;
 	private static String output_file_name = null;
 	
-	private static String input_path_str = null;
-	private static String output_path_str = null;
+	private static String hdfs_workspace_path_str = null;
+	private static String documents_directory_path_str = null;
+	private static String output_directory_path_str = null;
 	private static String alpha_path_str = null;
-	private static String EPlambda_path_str = null;
 	private static int numMapper = 0;
 	private static int numReducer = 0;
 	
-	private static Vector<Document_LDA_Online> document_list;
 	private static ArrayList<String> Vocabulary_list;	// vocabulary
+	private static BufferedReader document_reader;
 	
 	private static int max_rank = 30;
 	
 	private static Gson gson;
+	
+	private static JobConf conf;
 	
 	public static void main(String[] args) throws IOException
 	{
 		// Initialize
 		Init(args);
 		
-		// Make Documents List
-		document_list = make_document_list();
-		
 		// Run
-		// TODO do it!
 		int update_t = 0;
+		String documents_path_str = documents_directory_path_str + "/mini_documents";
+		String output_dir_path_str = null;
+		String lambda_path_str = null;
 		for(int done_doc_size = 0 ; done_doc_size < DocumentNum ; done_doc_size += MinibatchSize, update_t++)
 		{
+			Miscellaneous_function.Print_String_with_Date("Run MapReduce job. update_t is " + update_t);
 			// Get target documents
+			ArrayList<String> target_documents = make_document_list(MinibatchSize);
 			
 			// Put it to HDFS
-			
+			Put_Data_to_HDFS(documents_path_str, target_documents);
 			
 			// Set paths
-			
+			output_dir_path_str = output_directory_path_str + "/" + (update_t + 1);
+			lambda_path_str = output_directory_path_str + "/" + update_t;
+			double Doc_Mini_Num = (double)DocumentNum / (double)(target_documents.size());
 			
 			// Run MapReduce
-//			Run_MapReduce_job(input_path_str, output_path_str, lambda_path_str, update_t, Doc_Mini_Num);
+			Run_MapReduce_job(documents_path_str, output_dir_path_str, lambda_path_str, update_t, Doc_Mini_Num);
 		}
+		
+		document_reader.close();
 		
 		// Print result
 		// with Lambda
+		Load_Lambda_kv(lambda_path_str);
 		ExportResultCSV();
 	}
 
+	
 	/*
 	 * Initialize parameters
 	 * */
@@ -109,15 +115,13 @@ public class LDA_DOnline_Driver
 			voca_file_path = new String(args[3]);
 			BOW_file_path = new String(args[4]);
 			output_file_name = new String(args[5]);
-			input_path_str = new String(args[6]);
-			output_path_str = new String(args[7]);
-			numMapper = Integer.parseInt(args[8]);
-			numReducer = Integer.parseInt(args[9]);
+			hdfs_workspace_path_str = new String(args[6]);
+			numMapper = Integer.parseInt(args[7]);
+			numReducer = Integer.parseInt(args[8]);
 			
 			Vocabulary_list = Miscellaneous_function.makeStringListFromFile(voca_file_path);
 			VocaNum = Vocabulary_list.size();
 			
-			rand = new Random(1);
 			gson = new Gson();
 			
 			alpha = new SimpleMatrix(1, TopicNum);
@@ -126,52 +130,85 @@ public class LDA_DOnline_Driver
 			Lambda_kv = new SimpleMatrix(TopicNum, VocaNum);
 			Matrix_Functions.SetGammaDistribution(Lambda_kv, 100.0, 100.0);
 			
-//			Expectation_Lambda_kv = Matrix_Functions.Compute_Dirichlet_Expectation_col(Lambda_kv);
+			document_reader = new BufferedReader(new FileReader(new File(BOW_file_path)));
+			DocumentNum = Miscellaneous_function.file_line_count(BOW_file_path);
 			
 			// Path
-			String parameter_dir_path_str = output_path_str + "_parameters";
-			Path parameter_dir_path = new Path(parameter_dir_path_str);
-			JobConf conf = new JobConf(LDA_DOnline_Driver.class);
-			conf.addResource(new Path("/HADOOP_HOME/conf/core-site.xml"));
+			Miscellaneous_function.Print_String_with_Date("Write parameters in HDFS");
+			output_directory_path_str = hdfs_workspace_path_str + "/output";
+			documents_directory_path_str = hdfs_workspace_path_str + "/documents";
 			
-			FileSystem fileSystem = FileSystem.get(conf);
+			conf = new JobConf(LDA_DOnline_Driver.class);
 			
-			if(fileSystem.exists(parameter_dir_path)) 
-		    {
-		        System.out.println("Dir " + parameter_dir_path + " already exists");
-		    }
-		    else
-		    {
-		    	fileSystem.mkdirs(parameter_dir_path);
-		    }
+			// Check Hadoop conf file
+			if(new File("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/core-site.xml").exists())
+			{
+				// HDInsight
+				conf.addResource(new Path("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/core-site.xml"));
+				conf.addResource(new Path("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/hdfs-site.xml"));
+			}
+			else if(new File("/HADOOP_HOME/conf/core-site.xml").exists())
+			{
+				// Hadoop
+				conf.addResource(new Path("/HADOOP_HOME/conf/core-site.xml"));
+				conf.addResource(new Path("/HADOOP_HOME/conf/hdfs-site.xml"));
+			}
+			else
+			{
+				// What?!
+				System.err.println("I don't know where Hadoop conf files.");
+				System.exit(1);
+			}
 			
-			alpha_path_str = parameter_dir_path_str + "/alpha";
+			// Delete previous output path
+			try
+			{
+				FileSystem fileSystem = FileSystem.get(conf);
+				fileSystem.delete(new Path(output_directory_path_str), true);
+				fileSystem.close();
+			}
+			catch(java.lang.Throwable t)
+			{
+				System.err.println("Error in Init function in LDA_DOnline_Driver class");
+				t.printStackTrace();
+				System.exit(1);
+			}
+			
+			String init_lambda_path_str = output_directory_path_str + "/0/lambda";
+			Put_Data_to_HDFS_split(init_lambda_path_str, Lambda_kv);
+			
+			alpha_path_str = hdfs_workspace_path_str + "/parameters/alpha";
+			Put_Data_to_HDFS(alpha_path_str, alpha);
 		}
 		catch(java.lang.Throwable t)
 		{
-			System.out.println("Usage: TopicNum MinibatchSize Max_Iter voca_file_path BOW_file_path output_file_name");
+			System.out.println("Usage: TopicNum MinibatchSize Max_Iter voca_file_path BOW_file_path output_file_name hdfs_workspace_path_str numMapper numReducer");
+			System.out.println("Example");
+			System.out.println("100 10 100 ./ap_news/vocab.txt ./ap_news/ap.dat DoLDA_ap_news /user/NoSyu/Distributed_Online_LDA 2 2");
 			System.exit(1);
 		}
 	}
 	
+	
 	/*
 	 * Make Documents list
 	 * */
-	private static Vector<Document_LDA_Online> make_document_list()
+	private static ArrayList<String> make_document_list(int target_lines)
 	{
-		Vector<Document_LDA_Online> documents = new Vector<Document_LDA_Online>();
+		ArrayList<String> documents = new ArrayList<String>();
 		
 		try
 		{
-			BufferedReader in = new BufferedReader(new FileReader(new File(BOW_file_path)));
 			String line = null;
-			while((line=in.readLine()) != null)
+			for(int run_lines = 0 ; run_lines < target_lines ; run_lines++)
 			{
-				Document_LDA_Online doc = new Document_LDA_Online(line);
-
-				documents.add(doc);
+				line = document_reader.readLine();
+				if(null == line)
+				{
+					break;
+				}
+				documents.add(line);
 			}
-			in.close();
 		}
 		catch(java.lang.Throwable t)
 		{
@@ -180,9 +217,39 @@ public class LDA_DOnline_Driver
 			System.exit(1);
 		}
 		
-		DocumentNum = documents.size();
-		
 		return documents;
+	}
+	
+	
+	
+	/*
+	 * Put data to HDFS
+	 * */
+	private static void Put_Data_to_HDFS(String target_path_str, ArrayList<String> target_documents)
+	{
+		Path target_path = new Path(target_path_str);
+		
+		try
+		{
+			FileSystem fileSystem = FileSystem.get(conf);
+			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
+			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+
+			for(String one_doc : target_documents)
+			{
+				target_file_hdfs_out.println(one_doc);
+			}
+			
+			target_file_hdfs_out.close();
+			hdfs_out.close();
+			fileSystem.close();
+		}
+		catch(java.lang.Throwable t)
+		{
+			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
+			t.printStackTrace();
+			System.exit(1);
+		}
 	}
 	
 	
@@ -192,13 +259,12 @@ public class LDA_DOnline_Driver
 	private static void Put_Data_to_HDFS(String target_path_str, SimpleMatrix target_matrix)
 	{
 		Path target_path = new Path(target_path_str);
-		JobConf conf = new JobConf(LDA_DOnline_Driver.class);
-		conf.addResource(new Path("/HADOOP_HOME/conf/core-site.xml"));
 		
 		try
 		{
 			FileSystem fileSystem = FileSystem.get(conf);
-			FSDataOutputStream hdfs_out = fileSystem.create(target_path);
+			
+			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
 			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
 
 			target_file_hdfs_out.println(gson.toJson(target_matrix));
@@ -215,10 +281,48 @@ public class LDA_DOnline_Driver
 		}
 	}
 	
+	
+	
+	/*
+	 * Put data to HDFS
+	 * */
+	private static void Put_Data_to_HDFS_split(String target_path_str, SimpleMatrix target_matrix)
+	{
+		Path target_path = new Path(target_path_str);
+		
+		try
+		{
+			FileSystem fileSystem = FileSystem.get(conf);
+			
+			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
+			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+			
+			int numRows = target_matrix.numRows();
+			
+			for(int row_idx = 0 ; row_idx < numRows ; row_idx++)
+			{
+				target_file_hdfs_out.println(row_idx + "\t" + gson.toJson(target_matrix.extractVector(true, row_idx)));
+			}
+			
+//			target_file_hdfs_out.println(gson.toJson(target_matrix));
+			
+			target_file_hdfs_out.close();
+			hdfs_out.close();
+			fileSystem.close();
+		}
+		catch(java.lang.Throwable t)
+		{
+			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
+			t.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	
 	/*
 	 * Run MapReduce job
 	 * */
-	private static void Run_MapReduce_job(String input_path_str, String output_path_str, String lambda_path_str, int update_t, int Doc_Mini_Num) throws IOException
+	private static void Run_MapReduce_job(String input_path_str, String output_path_str, String lambda_path_str, int update_t, double Doc_Mini_Num) throws IOException
 	{
 		Path input_path = new Path(input_path_str);
 		Path output_path = new Path(output_path_str);
@@ -226,19 +330,21 @@ public class LDA_DOnline_Driver
 		// Run Distributed Online LDA
 		JobConf conf = new JobConf(LDA_DOnline_Driver.class);
 		conf.setJobName("DoLDA_" + update_t);
-
+		
 		conf.setMapOutputKeyClass(IntWritable.class);
 		conf.setMapOutputValueClass(Text.class);
-
+		
+//		conf.setOutputKeyClass(IntWritable.class);
 		conf.setOutputKeyClass(Text.class);
 		conf.setOutputValueClass(Text.class);
 
 		conf.setMapperClass(LDA_DOnline_Mapper.LDA_DO_Mapper.class);
 		conf.setCombinerClass(LDA_DOnline_Combiner.LDA_DO_Combiner.class);
-		conf.setReducerClass(LDA_DOnline_Reducer.LDA_DO_Combiner.class);
+		conf.setReducerClass(LDA_DOnline_Reducer.LDA_DO_Reducer.class);
 
 		conf.setInputFormat(TextInputFormat.class);
 		conf.setOutputFormat(Reducer_MultipleOutputFormat.class);
+//		conf.setOutputFormat(TextOutputFormat.class);
 		
 		conf.setCompressMapOutput(true);
 		
@@ -246,7 +352,6 @@ public class LDA_DOnline_Driver
 		conf.set("eta", String.valueOf(eta));
 		conf.set("convergence_limit", String.valueOf(convergence_limit));
 		conf.set("alpha_path", alpha_path_str);
-		conf.set("EPlambda_path", EPlambda_path_str);
 		conf.set("Max_Iter", String.valueOf(Max_Iter));
 		
 		conf.set("alpha_path", alpha_path_str);
@@ -265,12 +370,13 @@ public class LDA_DOnline_Driver
 		
 		FileInputFormat.setInputPaths(conf, input_path);
 		FileOutputFormat.setOutputPath(conf, output_path);
-
+		
 		conf.setNumMapTasks(numMapper);
 		conf.setNumReduceTasks(numReducer);
 		
 		JobClient.runJob(conf);
 	}
+	
 	
 	/*
 	 * Export result to CSV
@@ -282,7 +388,7 @@ public class LDA_DOnline_Driver
 			SimpleMatrix temp_row_vec = null;
 			int[] sorted_idx = null;
 			
-			PrintWriter lambda_out = new PrintWriter(new FileWriter(new File("oLDA_result_" + output_file_name + "_topic_voca_30.csv")));
+			PrintWriter lambda_out = new PrintWriter(new FileWriter(new File("DoLDA_result_" + output_file_name + "_topic_voca_30.csv")));
 			
 			// Lambda with Rank
 			for(int topic_idx = 0 ; topic_idx < TopicNum ; topic_idx++)
@@ -301,14 +407,113 @@ public class LDA_DOnline_Driver
 			lambda_out.close();
 			
 			// Lambda
-			Lambda_kv.saveToFileCSV("oLDA_result_" + output_file_name + "_lambda_kv.csv");
+			Lambda_kv.saveToFileCSV("DoLDA_result_" + output_file_name + "_lambda_kv.csv");
 		}
 		catch(java.lang.Throwable t)
 		{
-			System.err.println("Error in ExportResultCSV function in oLDA_Main class");
+			System.err.println("Error in ExportResultCSV function in LDA_DOnline_Driver class");
 			t.printStackTrace();
 			System.exit(1);
 		}
 	}
+	
+	
+	/*
+	 * Load lambda from HDFS
+	 * */
+	private static void Load_Lambda_kv(String lambda_path_str)
+	{
+		// Lambda_kv load
+		try
+		{
+			FileSystem fileSystem = FileSystem.get(conf);
+			Path lambda_dir_path = new Path(lambda_path_str);
+			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
+			String line = null;
+			String[] line_arr = null;
+			SimpleMatrix row_vec = null;
 
+			for(FileStatus one_file_s : file_lists)
+			{
+				Path lambda_path = one_file_s.getPath();
+				FSDataInputStream fs = fileSystem.open(lambda_path);
+				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+
+				while ((line = fis.readLine()) != null) 
+				{
+					line_arr = line.split("\t");
+
+					row_vec = gson.fromJson(line_arr[1], SimpleMatrix.class);
+
+					Lambda_kv.insertIntoThis(Integer.parseInt(line_arr[0]), 0, row_vec);
+				}
+
+				fis.close();
+				fs.close();
+			}
+		}
+		catch (Throwable t) 
+		{
+			t.printStackTrace();
+		}
+	}
+
+	
+	
+	/*
+	 * Test Functions
+	 * */
+//	private static void Test_Fun()
+//	{
+//		try
+//		{
+//			SimpleMatrix Lambda_kv_hdfs = new SimpleMatrix(TopicNum, VocaNum);
+//			
+//			FileSystem fileSystem = FileSystem.get(conf);
+//			Path lambda_dir_path = new Path(output_directory_path_str + "/0");
+//			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
+//			String line = null;
+//			String[] line_arr = null;
+//			SimpleMatrix row_vec = null;
+//			
+//			for(FileStatus one_file_s : file_lists)
+////			for(int idx = 0 ; idx < file_lists.length ; idx++)
+//			{
+////				FileStatus one_file_s = file_lists[idx];
+//				Path lambda_path = one_file_s.getPath();
+//				FSDataInputStream fs = fileSystem.open(lambda_path);
+//				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+//				
+//				while ((line = fis.readLine()) != null) 
+//				{
+//					line_arr = line.split("\t");
+//					
+//					row_vec = gson.fromJson(line_arr[1], SimpleMatrix.class);
+//					
+//					Lambda_kv_hdfs.insertIntoThis(Integer.parseInt(line_arr[0]), 0, row_vec);
+//				}
+//				
+//				fis.close();
+//				fs.close();
+//			}
+//			
+//			System.out.println(Lambda_kv_hdfs.get(0, 1));
+//			System.out.println(Lambda_kv.get(0, 1));
+//			System.out.println(Lambda_kv_hdfs.get(3, 4));
+//			System.out.println(Lambda_kv.get(3, 4));
+//			System.out.println(Lambda_kv_hdfs.get(7, 4));
+//			System.out.println(Lambda_kv.get(7, 4));
+//			System.out.println(Lambda_kv_hdfs.get(2, 7));
+//			System.out.println(Lambda_kv.get(2, 7));
+//		}
+//		catch(java.lang.Throwable t)
+//		{
+//			t.printStackTrace();
+//			System.exit(1);
+//		}
+//		finally
+//		{
+//			System.exit(1);
+//		}
+//	}
 }

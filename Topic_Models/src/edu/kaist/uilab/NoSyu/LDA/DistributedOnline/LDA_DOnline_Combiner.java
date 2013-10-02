@@ -39,8 +39,8 @@ public class LDA_DOnline_Combiner
 	 * */
 	public static class LDA_DO_Combiner extends MapReduceBase implements Reducer<IntWritable, Text, IntWritable, Text>
 	{
-		private static Gson gson;
-		private static Type IntegerDoubleMap;
+		private Gson gson;
+		private Type IntegerDoubleMap;
 		
 		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
 		{

@@ -10,14 +10,14 @@ public class Reducer_MultipleOutputFormat extends MultipleTextOutputFormat<Text,
 	{
 		String keyString = key.toString();
 		
-		return keyString;
+		return keyString + "_" + name;
 	}
 	
 	protected Text generateActualKey(Text key, Text value)
 	{
 		String valueString = value.toString();
 		
-		String[] valueString_arr = valueString.split(",");
+		String[] valueString_arr = valueString.split("\t");
 		
 		return new Text(valueString_arr[0]);
 	}
@@ -26,7 +26,7 @@ public class Reducer_MultipleOutputFormat extends MultipleTextOutputFormat<Text,
 	{
 		String valueString = value.toString();
 		
-		String[] valueString_arr = valueString.split(",");
+		String[] valueString_arr = valueString.split("\t");
 		
 		return new Text(valueString_arr[1]);
 	}

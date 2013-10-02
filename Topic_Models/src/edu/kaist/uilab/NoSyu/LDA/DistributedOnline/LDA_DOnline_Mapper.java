@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Random;
 
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
@@ -43,15 +44,16 @@ public class LDA_DOnline_Mapper
 	 * */
 	public static class LDA_DO_Mapper extends MapReduceBase implements Mapper<LongWritable, Text, IntWritable, Text> 
 	{
-		private static int TopicNum;	// Number of Topic				== K
-
-		private static int Max_Iter;	// Maximum number of iteration for E_Step
-		private static double convergence_limit;
+		private int TopicNum;	// Number of Topic				== K
+		private int VocaNum;	// Size of Dictionary of words	== V
 		
-		private static Random rand;	// Random object
+		private int Max_Iter;	// Maximum number of iteration for E_Step
+		private double convergence_limit;
 		
-		private static SimpleMatrix Expectation_Lambda_kv;				// Expectation of log beta
-		private static SimpleMatrix alpha;		// Hyper-parameter for theta
+		private Random rand;	// Random object
+		
+		private SimpleMatrix Expectation_Lambda_kv;				// Expectation of log beta
+		private SimpleMatrix alpha;		// Hyper-parameter for theta
 		
 		private Gson gson;
 		
@@ -105,6 +107,7 @@ public class LDA_DOnline_Mapper
 			TopicNum = Integer.parseInt(job.get("TopicNum"));
 			convergence_limit = Double.parseDouble(job.get("convergence_limit"));
 			Max_Iter = Integer.parseInt(job.get("Max_Iter"));
+			VocaNum = Integer.parseInt(job.get("VocaNum"));
 			
 			rand = new Random(1);
 			gson = new Gson();
@@ -120,16 +123,11 @@ public class LDA_DOnline_Mapper
 				Path alpha_path = new Path(FileSystem.getDefaultUri(job) + alpha_path_str);
 				FSDataInputStream fs = fileSystem.open(alpha_path);
 				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-				StringBuilder builder = new StringBuilder();
-				String line = null;
-				while ((line = fis.readLine()) != null) 
-				{
-					builder.append(line + "\n");
-				}
+				
+				alpha = gson.fromJson(fis, SimpleMatrix.class);
+				
 				fis.close();
 				fs.close();
-				
-				alpha = gson.fromJson(builder.toString(), SimpleMatrix.class);
 			}
 			catch (Throwable t) 
 			{
@@ -139,23 +137,37 @@ public class LDA_DOnline_Mapper
 				alpha.set(0.1);
 			}
 
-			// Expectation_Lambda_kv load
+			// Lambda_kv load
 			try
 			{
-				fileSystem = FileSystem.get(job);
-				Path lambda_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
-				FSDataInputStream fs = fileSystem.open(lambda_path);
-				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-				StringBuilder builder = new StringBuilder();
-				String line = null;
-				while ((line = fis.readLine()) != null) 
-				{
-					builder.append(line + "\n");
-				}
-				fis.close();
-				fs.close();
+				SimpleMatrix Lambda_kv = new SimpleMatrix(TopicNum, VocaNum);
 				
-				SimpleMatrix Lambda_kv = gson.fromJson(builder.toString(), SimpleMatrix.class);
+				fileSystem = FileSystem.get(job);
+				Path lambda_dir_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
+				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
+				String line = null;
+				String[] line_arr = null;
+				SimpleMatrix row_vec = null;
+				
+				for(FileStatus one_file_s : file_lists)
+				{
+					Path lambda_path = one_file_s.getPath();
+					FSDataInputStream fs = fileSystem.open(lambda_path);
+					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+					
+					while ((line = fis.readLine()) != null) 
+					{
+						line_arr = line.split("\t");
+						
+						row_vec = gson.fromJson(line_arr[1], SimpleMatrix.class);
+						
+						Lambda_kv.insertIntoThis(Integer.parseInt(line_arr[0]), 0, row_vec);
+					}
+					
+					fis.close();
+					fs.close();
+				}
+				
 				Expectation_Lambda_kv = Matrix_Functions.Compute_Dirichlet_Expectation_col(Lambda_kv);
 			}
 			catch (Throwable t) 
@@ -170,7 +182,7 @@ public class LDA_DOnline_Mapper
 		 * 	Document_LDA_Online target_document	- target document instance 
 		 * 	SimpleMatrix doc_Expe_Lambda_kv		- Expectation of log beta which matches vocabulary index in this document, K x V' 
 		 * */
-		private static void E_Step(Document_LDA_Online target_document, SimpleMatrix doc_Expe_Lambda_kv)
+		private void E_Step(Document_LDA_Online target_document, SimpleMatrix doc_Expe_Lambda_kv)
 		{
 			double changes_gamma_s = 0.0;
 			SimpleMatrix temp_matrix = null;
@@ -194,7 +206,6 @@ public class LDA_DOnline_Mapper
 				// Check convergence
 				if(changes_gamma_s < convergence_limit && iter_idx > 1)
 				{
-//					System.out.println("iter_idx:\t" + iter_idx);
 					break;
 				}
 			}

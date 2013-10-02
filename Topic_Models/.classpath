@@ -2,27 +2,9 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/hadoop-0.21.0"/>
-	<classpathentry kind="lib" path="lib/aws-java-sdk-1.4.3.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/aspectj-1.6/aspectjrt.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/aspectj-1.6/aspectjweaver.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/commons-codec-1.3/commons-codec-1.3.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/commons-logging-1.1.1/commons-logging-1.1.1.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/freemarker-2.3.18/freemarker-2.3.18.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/httpcomponents-client-4.1.1/httpclient-4.1.1.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/httpcomponents-client-4.1.1/httpcore-4.1.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/jackson-core-1.8/jackson-core-asl-1.8.7.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/jackson-mapper-1.8/jackson-mapper-asl-1.8.7.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/java-mail-1.4.3/mail-1.4.3.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/spring-3.0/spring-beans-3.0.7.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/spring-3.0/spring-context-3.0.7.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/spring-3.0/spring-core-3.0.7.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/stax-api-1.0.1/stax-api-1.0.1.jar"/>
-	<classpathentry kind="lib" path="lib/third-party/stax-ri-1.2.0/stax-1.2.0.jar"/>
 	<classpathentry kind="lib" path="lib/ejml-0.23.jar"/>
 	<classpathentry kind="lib" path="lib/gson-2.2.4.jar"/>
 	<classpathentry kind="lib" path="lib/commons-math3-3.2.jar"/>
-	<classpathentry kind="lib" path="lib/hadoop-core-1.2.1.jar"/>
-	<classpathentry kind="lib" path="lib/la4j-0.4.0.jar"/>
+	<classpathentry kind="lib" path="C:/Hadoop/hadoop-1.1.0-SNAPSHOT/hadoop-core.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
@@ -22,6 +23,8 @@ import org.ejml.simple.SimpleMatrix;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+
+import edu.kaist.uilab.NoSyu.utils.Matrix_Functions;
 
 public class LDA_DOnline_Reducer 
 {
@@ -40,20 +43,23 @@ public class LDA_DOnline_Reducer
 	 * key : Voca index
 	 * value : lambda_kv where v is key value 
 	 * */
-	public static class LDA_DO_Combiner extends MapReduceBase implements Reducer<IntWritable, Text, IntWritable, Text>
+//	public static class LDA_DO_Reducer extends MapReduceBase implements Reducer<IntWritable, Text, IntWritable, Text>
+	public static class LDA_DO_Reducer extends MapReduceBase implements Reducer<IntWritable, Text, Text, Text>
 	{
-		private static double Doc_Mini_Num;	// Number of Document / Size of Minibatch
-		private static int VocaNum;	// Size of Dictionary of words	== V
+		private int TopicNum;	// Number of Topic				== K
+		private double Doc_Mini_Num;	// Number of Document / Size of Minibatch
+		private int VocaNum;	// Size of Dictionary of words	== V
 		
-		private static double eta;		// Hyper-parameter for beta
-		private static double rho_t;
+		private double eta;		// Hyper-parameter for beta
+		private double rho_t;
 		
-		private static Gson gson;
-		private static Type IntegerDoubleMap;
+		private Gson gson;
+		private Type IntegerDoubleMap;
 		
-		private static SimpleMatrix Lambda_kv;				// lambda
+		private SimpleMatrix Lambda_kv;				// lambda
 		
-		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
+//		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
+		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException
 		{
 			int key_int = key.get();
 			
@@ -106,10 +112,11 @@ public class LDA_DOnline_Reducer
 				// Update lambda
 				SimpleMatrix temp_1 = read_lambda_kv_by_k(key_int).scale(1 - rho_t);
 				SimpleMatrix temp_2 = delta_lambda_k.scale(rho_t);
-				SimpleMatrix updated_lambda_v = temp_1.plus(temp_2.transpose());	// 1 x V
+				SimpleMatrix updated_lambda_v = temp_1.plus(temp_2);	// 1 x V
 				
 				// Output is Topic index and updated lambda for this topic index
-				output.collect(new IntWritable(key_int), new Text(gson.toJson(updated_lambda_v)));
+				output.collect(new Text("lambda"), new Text(key_int + "\t" + gson.toJson(updated_lambda_v)));
+//				output.collect(new IntWritable(key_int), new Text(gson.toJson(updated_lambda_v)));
 			}
 			else
 			{
@@ -121,40 +128,71 @@ public class LDA_DOnline_Reducer
 		public void configure(JobConf job) 
 		{
 			// Get information
-			Doc_Mini_Num = (double)(Integer.parseInt(job.get("Doc_Mini_Num")));
+			Doc_Mini_Num = Double.parseDouble(job.get("Doc_Mini_Num"));
 			VocaNum = Integer.parseInt(job.get("VocaNum"));
 			rho_t = Double.parseDouble(job.get("rho_t"));
 			eta = Double.parseDouble(job.get("eta"));
+			TopicNum = Integer.parseInt(job.get("TopicNum"));
 			
 			gson = new Gson();
 			IntegerDoubleMap = new TypeToken<Map<Integer, Double>>(){}.getType();
 			
 			String lambda_path_str = job.get("lambda_path");
-			
-			// Expectation_Lambda_kv load
+
+			// Lambda_kv load
 			try
 			{
-				FileSystem fileSystem = FileSystem.get(job);
-				Path lambda_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
-				FSDataInputStream fs = fileSystem.open(lambda_path);
-				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-				StringBuilder builder = new StringBuilder();
-				String line = null;
-				while ((line = fis.readLine()) != null) 
-				{
-					builder.append(line + "\n");
-				}
-				fis.close();
-				fs.close();
+				Lambda_kv = new SimpleMatrix(TopicNum, VocaNum);
 				
-				Lambda_kv = gson.fromJson(builder.toString(), SimpleMatrix.class);
+				FileSystem fileSystem = FileSystem.get(job);
+				Path lambda_dir_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
+				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
+				String line = null;
+				String[] line_arr = null;
+				SimpleMatrix row_vec = null;
+				
+				for(FileStatus one_file_s : file_lists)
+				{
+					Path lambda_path = one_file_s.getPath();
+					FSDataInputStream fs = fileSystem.open(lambda_path);
+					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+					
+					while ((line = fis.readLine()) != null) 
+					{
+						line_arr = line.split("\t");
+						
+						row_vec = gson.fromJson(line_arr[1], SimpleMatrix.class);
+						
+						Lambda_kv.insertIntoThis(Integer.parseInt(line_arr[0]), 0, row_vec);
+					}
+					
+					fis.close();
+					fs.close();
+				}
 			}
 			catch (Throwable t) 
 			{
 				t.printStackTrace();
 			}
+			
+//			try
+//			{
+//				FileSystem fileSystem = FileSystem.get(job);
+//				Path lambda_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
+//				FSDataInputStream fs = fileSystem.open(lambda_path);
+//				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+//
+//				Lambda_kv = gson.fromJson(fis, SimpleMatrix.class);
+//				
+//				fis.close();
+//				fs.close();
+//			}
+//			catch (Throwable t) 
+//			{
+//				t.printStackTrace();
+//			}
 		}
-		
+
 		/*
 		 * Return vector for topic index in Lambda_kv 
 		 * */

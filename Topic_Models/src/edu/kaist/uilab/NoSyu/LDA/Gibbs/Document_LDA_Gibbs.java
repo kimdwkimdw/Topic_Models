@@ -1,7 +1,7 @@
 package edu.kaist.uilab.NoSyu.LDA.Gibbs;
 
+import java.util.ArrayList;
 import java.util.StringTokenizer;
-import java.util.Vector;
 
 /*
  * A document
@@ -10,7 +10,7 @@ public class Document_LDA_Gibbs
 {
 	private int document_idx;		// document index
 	private int topic_sum;			// Sum of topic. Good for computing p(z|alpha)
-	private Vector<Word> word_vec;	// List of words in a document
+	private ArrayList<Word> word_vec;	// List of words in a document
 	private String filename;		// FileName
 	
 	/*
@@ -20,7 +20,7 @@ public class Document_LDA_Gibbs
 	{
 		this.document_idx = document_idx;
 		this.topic_sum = 0;
-		this.word_vec = new Vector<Word>();
+		this.word_vec = new ArrayList<Word>();
 	}
 	
 	/*
@@ -32,7 +32,7 @@ public class Document_LDA_Gibbs
 	{
 		this.document_idx = document_idx;
 		this.topic_sum = 0;
-		this.word_vec = new Vector<Word>();
+		this.word_vec = new ArrayList<Word>();
 		
 		this.updateWords(BOW_format);
 	}
@@ -72,7 +72,7 @@ public class Document_LDA_Gibbs
 	/*
 	 * Get/Set Method
 	 * */
-	public Vector<Word> getword_vec()
+	public ArrayList<Word> getword_vec()
 	{
 		return this.word_vec;
 	}
