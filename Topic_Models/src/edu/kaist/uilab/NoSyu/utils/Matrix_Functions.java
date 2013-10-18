@@ -260,6 +260,7 @@ public class Matrix_Functions
 	
 	
 	/*
+	 * Do normalization for each row vector
 	 * 
 	 * */
 	public static void Row_Normalization(SimpleMatrix target_matrix)
@@ -271,8 +272,26 @@ public class Matrix_Functions
 		for(int row_idx = 0 ; row_idx < row_num ; row_idx++)
 		{
 			temp_row_vec = target_matrix.extractVector(true, row_idx);
-			denom = temp_row_vec.elementSum();
+			denom = temp_row_vec.elementSum() + 1e-100;
 			target_matrix.insertIntoThis(row_idx, 0, temp_row_vec.scale(1/denom));
+		}
+	}
+	
+	
+	/*
+	 * Do normalization for each column vector
+	 * */
+	public static void Col_Normalization(SimpleMatrix target_matrix)
+	{
+		int col_num = target_matrix.numCols();
+		SimpleMatrix temp_col_vec = null;
+		double denom = 0;
+		
+		for(int col_idx = 0 ; col_idx < col_num ; col_idx++)
+		{
+			temp_col_vec = target_matrix.extractVector(false, col_idx);
+			denom = temp_col_vec.elementSum() + 1e-100;
+			target_matrix.insertIntoThis(0, col_idx, temp_col_vec.scale(1/denom));
 		}
 	}
 	

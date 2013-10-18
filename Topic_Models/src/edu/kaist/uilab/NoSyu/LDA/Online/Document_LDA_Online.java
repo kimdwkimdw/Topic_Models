@@ -6,6 +6,7 @@ import java.util.TreeSet;
 import org.ejml.simple.SimpleMatrix;
 
 import edu.kaist.uilab.NoSyu.utils.Document;
+import edu.kaist.uilab.NoSyu.utils.Matrix_Functions;
 
 /*
  * A document
@@ -28,7 +29,8 @@ public class Document_LDA_Online extends Document
 	 * */
 	public void Start_this_document(int TopicNum, Random rand)
 	{
-		this.gamma_sk = SimpleMatrix.random(1, TopicNum, 0, 1, rand);
+		this.gamma_sk = new SimpleMatrix(1, TopicNum);
+		Matrix_Functions.SetGammaDistribution(this.gamma_sk, 100.0, 0.01);
 	}
 	
 	/*
