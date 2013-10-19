@@ -10,6 +10,8 @@ import java.util.List;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.special.Gamma;
+import org.apache.commons.math3.util.FastMath;
 
 import edu.kaist.uilab.NoSyu.utils.Matrix_Functions_ACM3;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
@@ -32,7 +34,7 @@ public class oLDA_Main_with_ACM3
 	private static double kappa = 0.7;
 	private static double update_t;
 	private static double rho_t;
-	private static int minibatch_size = 1;
+	private static int minibatch_size;
 	
 	private static String voca_file_path = null;
 	private static String BOW_file_path = null;
@@ -44,6 +46,10 @@ public class oLDA_Main_with_ACM3
 	private static int max_rank = 30;
 	
 	private static int[] topic_index_array = null;
+	
+	private static double sum_score;
+	private static double sum_word_count;
+	private static double loggamma_sum_alpha;
 	
 	public static void main(String[] args) 
 	{
@@ -57,6 +63,7 @@ public class oLDA_Main_with_ACM3
 		// Variables
 		int start_doc_idx = 0;
 		int last_doc_idx = minibatch_size;
+		double minibatch_size_this_iter = 0;
 		Array2DRowRealMatrix sumed_ss_lambda = null;
 		
 		// Run oLDA
@@ -64,15 +71,18 @@ public class oLDA_Main_with_ACM3
 		{
 			// Start
 			minibatch_document_list = document_list.subList(start_doc_idx, last_doc_idx);
+			minibatch_size_this_iter = (double)(minibatch_document_list.size());
+			sum_score = 0;
+			sum_word_count = 0;
 			
 			// E step
 			sumed_ss_lambda = E_Step(minibatch_document_list);
 			
 			// Print perplexity
-			Print_perplexity();
+			System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_size_this_iter));
 			
 			// M step
-			M_Step(sumed_ss_lambda, (double)(minibatch_document_list.size()));
+			M_Step(sumed_ss_lambda, minibatch_size_this_iter);
 			
 			// Update index variable
 			update_t++;
@@ -85,15 +95,18 @@ public class oLDA_Main_with_ACM3
 				
 				// Start
 				minibatch_document_list = document_list.subList(start_doc_idx, last_doc_idx);
+				minibatch_size_this_iter = (double)(minibatch_document_list.size());
+				sum_score = 0;
+				sum_word_count = 0;
 				
 				// E step
 				sumed_ss_lambda = E_Step(minibatch_document_list);
 				
 				// Print perplexity
-				Print_perplexity();
+				System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_size_this_iter));
 				
 				// M step
-				M_Step(sumed_ss_lambda, (double)(minibatch_document_list.size()));
+				M_Step(sumed_ss_lambda, minibatch_size_this_iter);
 				
 				break;
 			}
@@ -124,12 +137,12 @@ public class oLDA_Main_with_ACM3
 			update_t = 0;
 			
 			alpha = new ArrayRealVector(TopicNum, 0.01);
+			loggamma_sum_alpha = Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(alpha));
 			
 			Lambda_kv = new Array2DRowRealMatrix(TopicNum, VocaNum);
 			Matrix_Functions_ACM3.SetGammaDistribution(Lambda_kv, 100.0, 0.01);
 			
 			Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
-			
 			
 			topic_index_array = new int[TopicNum];
 			for(int idx = 0 ; idx < TopicNum ; idx++)
@@ -191,7 +204,7 @@ public class oLDA_Main_with_ACM3
 		
 		for(Document_LDA_Online_ACM3 one_doc : minibatch_document_list)
 		{
-			System.out.println("Document Name:\t" + one_doc.get_filename());
+//			System.out.println("Document Name:\t" + one_doc.get_filename());
 			
 			int VocaNum_for_this_document = one_doc.get_voca_cnt();
 			voca_for_this_doc_index_array = one_doc.get_real_voca_index_array_sorted();
@@ -212,8 +225,6 @@ public class oLDA_Main_with_ACM3
 			}
 		}
 		
-		// TODO: Compute for perplexity
-		
 		return sumed_ss_lambda;
 	}
 	
@@ -232,17 +243,18 @@ public class oLDA_Main_with_ACM3
 		ArrayRealVector temp_vector = null;
 		Array2DRowRealMatrix phi_skw = null;
 		Array2DRowRealMatrix n_sw_phi_skw = null;
+		ArrayRealVector word_freq_vector = target_document.get_word_freq_vector();
 		
 		for (int iter_idx = 0 ; iter_idx < Max_Iter ; iter_idx++)
 		{
 			// Update phi
-			temp_vector = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(target_document.gamma_sk);	// temp_matrix = E_q [log \thtea_sk], 1 x K
+			temp_vector = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation(target_document.gamma_sk);	// temp_matrix = E_q [log \thtea_sk], 1 x K
 			phi_skw = Matrix_Functions_ACM3.Sum_Matrix_col_vector(doc_Expe_Lambda_kv, temp_vector);	// K x V'
 			Matrix_Functions_ACM3.Do_Exponential(phi_skw);
 			Matrix_Functions_ACM3.Col_Normalization(phi_skw);	// K x V'
 			
 			// Update gamma
-			n_sw_phi_skw = Matrix_Functions_ACM3.Mul_Matrix_row_vector(phi_skw, target_document.get_word_freq_vector());	// K x V'
+			n_sw_phi_skw = Matrix_Functions_ACM3.Mul_Matrix_row_vector(phi_skw, word_freq_vector);	// K x V'
 			temp_vector = Matrix_Functions_ACM3.Fold_Col(n_sw_phi_skw);	// 1 x K
 			temp_vector = alpha.add(temp_vector);
 			changes_gamma_s = Matrix_Functions_ACM3.Diff_Two_Vector(temp_vector, target_document.gamma_sk);	// Get changes
@@ -255,8 +267,30 @@ public class oLDA_Main_with_ACM3
 			}
 		}
 		
-		// TODO: Compute for perplexity
+		// Compute for perplexity
+		int VocaNum_for_this_document = target_document.get_voca_cnt();
+		ArrayRealVector log_theta_sk_vec = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation(target_document.gamma_sk);	// temp_matrix = E_q [log \thtea_sk], 1 x K
+		double score_this_doc = 0;
+		double phinorm = 0;
 		
+		for(int col_idx = 0 ; col_idx < VocaNum_for_this_document ; col_idx++)
+		{
+			temp_vector = log_theta_sk_vec.add(doc_Expe_Lambda_kv.getColumnVector(col_idx));
+			phinorm = Matrix_Functions_ACM3.Vec_Exp_Normalization_with_Log(temp_vector);
+			score_this_doc += phinorm * word_freq_vector.getEntry(col_idx);
+		}
+		sum_score += score_this_doc;
+		
+		temp_vector = Matrix_Functions_ACM3.elementwise_mul_two_vector(alpha.subtract(target_document.gamma_sk), log_theta_sk_vec);
+		sum_score += Matrix_Functions_ACM3.Fold_Vec(temp_vector);
+		
+		temp_vector = Matrix_Functions_ACM3.Do_Gammaln_return(target_document.gamma_sk);
+		temp_vector = temp_vector.subtract(Matrix_Functions_ACM3.Do_Gammaln_return(alpha));
+		sum_score += Matrix_Functions_ACM3.Fold_Vec(temp_vector);
+		
+		sum_score += loggamma_sum_alpha - Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(target_document.gamma_sk));
+		
+		sum_word_count += Matrix_Functions_ACM3.Fold_Vec(word_freq_vector);
 		
 		return n_sw_phi_skw;	// K x V'
 	}
@@ -327,10 +361,29 @@ public class oLDA_Main_with_ACM3
 	
 	
 	/*
-	 * Print perplexity
+	 * Compute perplexity
 	 * */
-	private static void Print_perplexity()
+	private static double Compute_perplexity(double minibatch_size_now)
 	{
-		// TODO: Compute for perplexity
+		// Compute for perplexity
+		sum_score *= DocumentNum / minibatch_size_now;
+		
+		Array2DRowRealMatrix temp_matrix = (Array2DRowRealMatrix) Lambda_kv.scalarMultiply(-1).scalarAdd(eta);
+		temp_matrix = Matrix_Functions_ACM3.elementwise_mul_two_matrix(temp_matrix, Expectation_Lambda_kv);
+		sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
+		
+		temp_matrix = Matrix_Functions_ACM3.Do_Gammaln_return(Lambda_kv);
+		temp_matrix = (Array2DRowRealMatrix) temp_matrix.scalarAdd(-Gamma.logGamma(eta));
+		sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
+		
+		ArrayRealVector temp_vector = Matrix_Functions_ACM3.Fold_Col(Lambda_kv);
+		temp_vector = Matrix_Functions_ACM3.Do_Gammaln_return(temp_vector);
+		temp_vector.mapMultiplyToSelf(-1);
+		temp_vector.mapAddToSelf(Gamma.logGamma(eta * VocaNum));
+		sum_score += Matrix_Functions_ACM3.Fold_Vec(temp_vector);
+		
+		double perwordbound = sum_score * minibatch_size_now / (DocumentNum * sum_word_count);
+		
+		return FastMath.exp(-perwordbound);		
 	}
 }
