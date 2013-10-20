@@ -1,8 +1,13 @@
 package edu.kaist.uilab.NoSyu.utils;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.LineNumberReader;
 import java.io.PrintWriter;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
@@ -34,7 +39,7 @@ public class Matrix_Functions_ACM3
 		{
 //			gd = new GammaDistribution(shape, scale);
 			JDKRandomGenerator rg = new JDKRandomGenerator();
-			rg.setSeed(1234567);
+//			rg.setSeed(1234567);
 			
 			gd = new GammaDistribution(rg, shape, scale, GammaDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY);
 		}
@@ -798,7 +803,7 @@ public class Matrix_Functions_ACM3
 		ArrayRealVector summed_vector = Fold_Row(target_matrix);
 		summed_vector.mapAddToSelf(1e-100);
 		
-		target_matrix.walkInOptimizedOrder(new Matrix_Functions_ACM3.Col_Normalization_visitor(summed_vector));
+		target_matrix.walkInRowOrder(new Matrix_Functions_ACM3.Col_Normalization_visitor(summed_vector));
 	}
 	
 	/*
@@ -811,9 +816,6 @@ public class Matrix_Functions_ACM3
 	 * exp(a_1) + exp(a_2) + exp(a_3)
 	 * algorithm
 	 * log (exp(a_1 - d) + exp(a_2 - d) + exp(a_3 - d)) + d where d is max value in input vector
-	 * 
-	 * tmax = max(temp)
-            phinorm[i] = numpy.log(sum(numpy.exp(temp - tmax))) + tmax
 	 * */
 	public static double Vec_Exp_Normalization_with_Log(ArrayRealVector input_vector)
 	{
@@ -939,7 +941,7 @@ public class Matrix_Functions_ACM3
 	public static void SetGammaDistribution(Array2DRowRealMatrix target_matrix, double shape, double scale)
 	{
 		JDKRandomGenerator rg = new JDKRandomGenerator();
-		rg.setSeed(1234567);
+//		rg.setSeed(1234567);
 		
 		final GammaDistribution gd = new GammaDistribution(rg, shape, scale, GammaDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY);
 		
@@ -1019,6 +1021,99 @@ public class Matrix_Functions_ACM3
 			e.printStackTrace();
 		}
 	}
+	
+	
+	/*
+	 * 
+	 * */
+	public static Array2DRowRealMatrix load_matrix_txt(String inputFilePath)
+	{
+		Array2DRowRealMatrix output_matrix = null;
+		
+		try
+		{
+			// Get Number of Row
+			LineNumberReader lnr = new LineNumberReader(new FileReader(new File(inputFilePath)));
+			lnr.skip(Long.MAX_VALUE);
+			int row_cnt = lnr.getLineNumber();
+			int row_idx = 0;
+			lnr.close();
+			
+			BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(inputFilePath), "UTF-8"));
+			
+			String line = in.readLine();
+			String[] line_arr = null;
+			line_arr = line.split(" ");
+			
+			int col_cnt = line_arr.length;
+			
+			output_matrix = new Array2DRowRealMatrix(row_cnt, col_cnt);
+			
+			while(line != null)
+			{
+				line_arr = line.split(" ");
+				
+				for(int col_idx = 0 ; col_idx < col_cnt ; col_idx++)
+				{
+					output_matrix.setEntry(row_idx, col_idx, Double.parseDouble(line_arr[col_idx]));
+				}
+				row_idx++;
+				
+				line = in.readLine();
+			}
+			
+			in.close();
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+		
+		return output_matrix;
+	}
+	
+	
+	/*
+	 * 
+	 * */
+	public static ArrayRealVector load_vector_txt(String inputFilePath)
+	{
+		ArrayRealVector output_vector = null;
+		
+		try
+		{
+			// Get Number of Row
+			LineNumberReader lnr = new LineNumberReader(new FileReader(new File(inputFilePath)));
+			lnr.skip(Long.MAX_VALUE);
+			int row_cnt = lnr.getLineNumber();
+			int row_idx = 0;
+			lnr.close();
+			
+			BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(inputFilePath), "UTF-8"));
+			
+			String line = in.readLine();
+			
+			output_vector = new ArrayRealVector(row_cnt);
+			
+			while(line != null)
+			{
+				output_vector.setEntry(row_idx, Double.parseDouble(line));
+				
+				row_idx++;
+				
+				line = in.readLine();
+			}
+			
+			in.close();
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+		
+		return output_vector;
+	}
+	
 	
 	
 //	/*

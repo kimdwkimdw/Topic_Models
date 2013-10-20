@@ -1,5 +1,6 @@
 package edu.kaist.uilab.NoSyu.LDA.Online;
 
+import java.util.Map.Entry;
 import java.util.TreeSet;
 
 import org.apache.commons.math3.linear.ArrayRealVector;
@@ -27,8 +28,16 @@ public class Document_LDA_Online_ACM3 extends Document
 	 * */
 	public void Start_this_document(int TopicNum)
 	{
-		this.gamma_sk = new ArrayRealVector(TopicNum);
-		Matrix_Functions_ACM3.SetGammaDistribution(this.gamma_sk, 100.0, 0.01);
+		int target_filename = Integer.parseInt(this.filename) - 1;
+		if(target_filename < 128)
+		{
+			this.gamma_sk = Matrix_Functions_ACM3.load_vector_txt("init_gammad_" + target_filename + ".txt");
+		}
+		else
+		{
+			this.gamma_sk = new ArrayRealVector(TopicNum);
+			Matrix_Functions_ACM3.SetGammaDistribution(this.gamma_sk, 100.0, 0.01);
+		}
 	}
 	
 	/*
@@ -64,9 +73,18 @@ public class Document_LDA_Online_ACM3 extends Document
 		int VocaNum_for_this_document = this.get_voca_cnt();
 		int[] voca_for_this_doc_index_array = new int[VocaNum_for_this_document];
 		
-		for(int idx = 0 ; idx < VocaNum_for_this_document ; idx++)
+		TreeSet<Integer> real_voca_idx_set = new TreeSet<Integer>();
+		
+		for(Entry<Integer, Integer> one_entry : voca_idx_to_real_voca_idx.entrySet())
 		{
-			voca_for_this_doc_index_array[idx] = voca_idx_to_real_voca_idx.get(idx);
+			real_voca_idx_set.add(one_entry.getValue());
+		}
+		
+		int arr_idx = 0;
+		for(int one_real_voca_idx : real_voca_idx_set)
+		{
+			voca_for_this_doc_index_array[arr_idx] = one_real_voca_idx;
+			arr_idx++;
 		}
 		
 		return voca_for_this_doc_index_array;

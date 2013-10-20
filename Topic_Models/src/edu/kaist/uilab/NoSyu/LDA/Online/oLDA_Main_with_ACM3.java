@@ -30,7 +30,7 @@ public class oLDA_Main_with_ACM3
 	
 	private static ArrayRealVector alpha;	// Hyper-parameter for theta
 	private static double eta = 0.01;		// Hyper-parameter for beta
-	private static double tau0 = 1024.0;
+	private static double tau0 = 1025.0;
 	private static double kappa = 0.7;
 	private static double update_t;
 	private static double rho_t;
@@ -141,6 +141,7 @@ public class oLDA_Main_with_ACM3
 			
 			Lambda_kv = new Array2DRowRealMatrix(TopicNum, VocaNum);
 			Matrix_Functions_ACM3.SetGammaDistribution(Lambda_kv, 100.0, 0.01);
+//			Lambda_kv = Matrix_Functions_ACM3.load_matrix_txt("lambda_init.txt");
 			
 			Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
 			
@@ -201,12 +202,11 @@ public class oLDA_Main_with_ACM3
 		Array2DRowRealMatrix ss_lambda_for_one_doc = null;
 		int real_voca_idx = 0;
 		int[] voca_for_this_doc_index_array = null;
-		
+
 		for(Document_LDA_Online_ACM3 one_doc : minibatch_document_list)
 		{
 //			System.out.println("Document Name:\t" + one_doc.get_filename());
 			
-			int VocaNum_for_this_document = one_doc.get_voca_cnt();
 			voca_for_this_doc_index_array = one_doc.get_real_voca_index_array_sorted();
 			
 			Array2DRowRealMatrix doc_Expe_Lambda_kv = (Array2DRowRealMatrix) Expectation_Lambda_kv.getSubMatrix(topic_index_array, voca_for_this_doc_index_array);
@@ -215,6 +215,7 @@ public class oLDA_Main_with_ACM3
 			ss_lambda_for_one_doc = E_Step_for_one_doc(one_doc, doc_Expe_Lambda_kv);
 			
 			// Summed ss_lambda
+			int VocaNum_for_this_document = one_doc.get_voca_cnt();
 			for(int sumed_ss_lambda_col_idx = 0 ; sumed_ss_lambda_col_idx < VocaNum_for_this_document ; sumed_ss_lambda_col_idx++)
 			{
 				real_voca_idx = voca_for_this_doc_index_array[sumed_ss_lambda_col_idx];
@@ -314,7 +315,7 @@ public class oLDA_Main_with_ACM3
 		Array2DRowRealMatrix temp_1 = (Array2DRowRealMatrix) Lambda_kv.scalarMultiply(1.0 - rho_t);
 		Array2DRowRealMatrix temp_2 = (Array2DRowRealMatrix) delta_lambda.scalarMultiply(rho_t);
 		Lambda_kv = temp_1.add(temp_2);	// K x V
-
+		
 		// Compute Expectation_Lambda_kv
 		Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
 	}
