@@ -12,8 +12,8 @@ public class Document
 {
 	protected String filename;		// file name
 	protected HashMap<Integer, Integer> number_dv;	// n_{document, vocabulary}. key: vocabulary index, value: frequency
-//	protected HashMap<Integer, Integer> voca_idx_to_real_voca_idx;	// matrix index to real voca index
-	protected ArrayList<Integer> voca_idx_to_real_voca_idx;	// matrix index to real voca index
+	protected HashMap<Integer, Integer> voca_idx_to_real_voca_idx;	// matrix index to real voca index
+//	protected ArrayList<Integer> voca_idx_to_real_voca_idx;	// matrix index to real voca index
 	
 	/*
 	 * Constructor
@@ -24,8 +24,8 @@ public class Document
 	{
 		// Initialize values
 		this.number_dv = new HashMap<Integer, Integer>();
-//		this.voca_idx_to_real_voca_idx = new HashMap<Integer, Integer>();
-		this.voca_idx_to_real_voca_idx = new ArrayList<Integer>();
+		this.voca_idx_to_real_voca_idx = new HashMap<Integer, Integer>();
+//		this.voca_idx_to_real_voca_idx = new ArrayList<Integer>();
 		
 		// Load bag of words
 		this.updateWords(BOW_format);
@@ -39,7 +39,7 @@ public class Document
 		StringTokenizer st = new StringTokenizer(BOW_format);
 		this.filename = new String(st.nextToken());	// filename
 		String tmp_str = st.nextToken();			// wordnums
-//		int matrix_idx = 0;
+		int matrix_idx = 0;
 		
 		while(st.hasMoreTokens())
 		{
@@ -48,9 +48,9 @@ public class Document
 			int freq = Integer.valueOf(tmp_str.split(":")[1]);
 			
 			this.number_dv.put(wordNo, freq);
-//			this.voca_idx_to_real_voca_idx.put(matrix_idx, wordNo);
-//			matrix_idx++;
-			this.voca_idx_to_real_voca_idx.add(wordNo);
+			this.voca_idx_to_real_voca_idx.put(matrix_idx, wordNo);
+			matrix_idx++;
+//			this.voca_idx_to_real_voca_idx.add(wordNo);
 		}
 	}
 	
@@ -85,8 +85,8 @@ public class Document
 		return this.number_dv.get(this.voca_idx_to_real_voca_idx.get(target_voca_idx));
 	}
 	
-//	public HashMap<Integer, Integer> get_voca_idx_to_real_voca_idx()
-	public ArrayList<Integer> get_voca_idx_to_real_voca_idx()
+	public HashMap<Integer, Integer> get_voca_idx_to_real_voca_idx()
+//	public ArrayList<Integer> get_voca_idx_to_real_voca_idx()
 	{
 		return this.voca_idx_to_real_voca_idx;
 	}

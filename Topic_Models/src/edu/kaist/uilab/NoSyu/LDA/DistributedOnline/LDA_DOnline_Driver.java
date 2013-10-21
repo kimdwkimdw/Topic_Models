@@ -9,6 +9,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -21,11 +23,10 @@ import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.TextInputFormat;
-import org.ejml.simple.SimpleMatrix;
 
 import com.google.gson.Gson;
 
-import edu.kaist.uilab.NoSyu.utils.Matrix_Functions;
+import edu.kaist.uilab.NoSyu.utils.Matrix_Functions_ACM3;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
 
 public class LDA_DOnline_Driver 
@@ -38,11 +39,11 @@ public class LDA_DOnline_Driver
 	private static int Max_Iter;	// Maximum number of iteration for E_Step
 	private static double convergence_limit = 1e-4;
 	
-	private static SimpleMatrix Lambda_kv;				// lambda
+	private static Array2DRowRealMatrix Lambda_kv;				// lambda
 	
-	private static SimpleMatrix alpha;		// Hyper-parameter for theta
+	private static ArrayRealVector alpha;		// Hyper-parameter for theta
 	private static double eta = 0.01;		// Hyper-parameter for beta
-	private static double tau0 = 512;
+	private static double tau0 = 1025;
 	private static double kappa = 0.7;
 	
 	private static String voca_file_path = null;
@@ -87,10 +88,9 @@ public class LDA_DOnline_Driver
 			// Set paths
 			output_dir_path_str = output_directory_path_str + "/" + (update_t + 1);
 			lambda_path_str = output_directory_path_str + "/" + update_t;
-			double Doc_Mini_Num = (double)DocumentNum / (double)(target_documents.size());
 			
 			// Run MapReduce
-			Run_MapReduce_job(documents_path_str, output_dir_path_str, lambda_path_str, update_t, Doc_Mini_Num);
+			Run_MapReduce_job(documents_path_str, output_dir_path_str, lambda_path_str, update_t, target_documents.size());
 		}
 		
 		document_reader.close();
@@ -124,11 +124,10 @@ public class LDA_DOnline_Driver
 			
 			gson = new Gson();
 			
-			alpha = new SimpleMatrix(1, TopicNum);
-			alpha.set(0.1);
+			alpha = new ArrayRealVector(TopicNum, 0.01);
 			
-			Lambda_kv = new SimpleMatrix(TopicNum, VocaNum);
-			Matrix_Functions.SetGammaDistribution(Lambda_kv, 100.0, 100.0);
+			Lambda_kv = new Array2DRowRealMatrix(TopicNum, VocaNum);
+			Matrix_Functions_ACM3.SetGammaDistribution(Lambda_kv, 100.0, 0.01);
 			
 			document_reader = new BufferedReader(new FileReader(new File(BOW_file_path)));
 			DocumentNum = Miscellaneous_function.file_line_count(BOW_file_path);
@@ -252,11 +251,10 @@ public class LDA_DOnline_Driver
 		}
 	}
 	
-	
 	/*
 	 * Put data to HDFS
 	 * */
-	private static void Put_Data_to_HDFS(String target_path_str, SimpleMatrix target_matrix)
+	private static void Put_Data_to_HDFS(String target_path_str, ArrayRealVector target_vector)
 	{
 		Path target_path = new Path(target_path_str);
 		
@@ -267,7 +265,7 @@ public class LDA_DOnline_Driver
 			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
 			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
 
-			target_file_hdfs_out.println(gson.toJson(target_matrix));
+			target_file_hdfs_out.println(gson.toJson(target_vector.getDataRef()));
 			
 			target_file_hdfs_out.close();
 			hdfs_out.close();
@@ -282,11 +280,10 @@ public class LDA_DOnline_Driver
 	}
 	
 	
-	
 	/*
 	 * Put data to HDFS
 	 * */
-	private static void Put_Data_to_HDFS_split(String target_path_str, SimpleMatrix target_matrix)
+	private static void Put_Data_to_HDFS_split(String target_path_str, Array2DRowRealMatrix target_matrix)
 	{
 		Path target_path = new Path(target_path_str);
 		
@@ -297,14 +294,12 @@ public class LDA_DOnline_Driver
 			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
 			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
 			
-			int numRows = target_matrix.numRows();
+			int numRows = target_matrix.getRowDimension();
 			
 			for(int row_idx = 0 ; row_idx < numRows ; row_idx++)
 			{
-				target_file_hdfs_out.println(row_idx + "\t" + gson.toJson(target_matrix.extractVector(true, row_idx)));
+				target_file_hdfs_out.println(row_idx + "\t" + gson.toJson(target_matrix.getRow(row_idx)));
 			}
-			
-//			target_file_hdfs_out.println(gson.toJson(target_matrix));
 			
 			target_file_hdfs_out.close();
 			hdfs_out.close();
@@ -322,7 +317,7 @@ public class LDA_DOnline_Driver
 	/*
 	 * Run MapReduce job
 	 * */
-	private static void Run_MapReduce_job(String input_path_str, String output_path_str, String lambda_path_str, int update_t, double Doc_Mini_Num) throws IOException
+	private static void Run_MapReduce_job(String input_path_str, String output_path_str, String lambda_path_str, int update_t, int minibatch_size) throws IOException
 	{
 		Path input_path = new Path(input_path_str);
 		Path output_path = new Path(output_path_str);
@@ -349,6 +344,8 @@ public class LDA_DOnline_Driver
 		conf.setCompressMapOutput(true);
 		
 		conf.set("TopicNum", String.valueOf(TopicNum));
+		conf.set("DocumentNum", String.valueOf((double)DocumentNum));
+		conf.set("minibatch_size", String.valueOf((double)minibatch_size));
 		conf.set("eta", String.valueOf(eta));
 		conf.set("convergence_limit", String.valueOf(convergence_limit));
 		conf.set("alpha_path", alpha_path_str);
@@ -357,7 +354,7 @@ public class LDA_DOnline_Driver
 		conf.set("alpha_path", alpha_path_str);
 		conf.set("lambda_path", lambda_path_str);
 		
-		conf.set("Doc_Mini_Num", String.valueOf(Doc_Mini_Num));
+//		conf.set("Doc_Mini_Num", String.valueOf(Doc_Mini_Num));
 		conf.set("VocaNum", String.valueOf(VocaNum));
 		
 		// Compute rho_t
@@ -385,15 +382,15 @@ public class LDA_DOnline_Driver
 	{
 		try
 		{
-			SimpleMatrix temp_row_vec = null;
+			double[] temp_row_vec = null;
 			int[] sorted_idx = null;
 			
-			PrintWriter lambda_out = new PrintWriter(new FileWriter(new File("DoLDA_result_" + output_file_name + "_topic_voca_30.csv")));
+			PrintWriter lambda_out = new PrintWriter(new FileWriter(new File("DoLDA_result_" + output_file_name + "_topic_" + TopicNum + ".csv")));
 			
 			// Lambda with Rank
 			for(int topic_idx = 0 ; topic_idx < TopicNum ; topic_idx++)
 			{
-				temp_row_vec = Lambda_kv.extractVector(true, topic_idx);
+				temp_row_vec = Lambda_kv.getRow(topic_idx);
 				sorted_idx = Miscellaneous_function.Sort_Ranking_Double(temp_row_vec, max_rank);
 				
 				lambda_out.print(topic_idx);
@@ -407,7 +404,7 @@ public class LDA_DOnline_Driver
 			lambda_out.close();
 			
 			// Lambda
-			Lambda_kv.saveToFileCSV("DoLDA_result_" + output_file_name + "_lambda_kv.csv");
+			Matrix_Functions_ACM3.saveToFileCSV(Lambda_kv, "DoLDA_result_" + output_file_name + "_topic_" + TopicNum + "_lambda_kv.csv");
 		}
 		catch(java.lang.Throwable t)
 		{
@@ -431,7 +428,7 @@ public class LDA_DOnline_Driver
 			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
 			String line = null;
 			String[] line_arr = null;
-			SimpleMatrix row_vec = null;
+			double[] row_vec = null;
 
 			for(FileStatus one_file_s : file_lists)
 			{
@@ -443,9 +440,9 @@ public class LDA_DOnline_Driver
 				{
 					line_arr = line.split("\t");
 
-					row_vec = gson.fromJson(line_arr[1], SimpleMatrix.class);
+					row_vec = gson.fromJson(line_arr[1], double[].class);
 
-					Lambda_kv.insertIntoThis(Integer.parseInt(line_arr[0]), 0, row_vec);
+					Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
 				}
 
 				fis.close();
@@ -457,63 +454,4 @@ public class LDA_DOnline_Driver
 			t.printStackTrace();
 		}
 	}
-
-	
-	
-	/*
-	 * Test Functions
-	 * */
-//	private static void Test_Fun()
-//	{
-//		try
-//		{
-//			SimpleMatrix Lambda_kv_hdfs = new SimpleMatrix(TopicNum, VocaNum);
-//			
-//			FileSystem fileSystem = FileSystem.get(conf);
-//			Path lambda_dir_path = new Path(output_directory_path_str + "/0");
-//			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
-//			String line = null;
-//			String[] line_arr = null;
-//			SimpleMatrix row_vec = null;
-//			
-//			for(FileStatus one_file_s : file_lists)
-////			for(int idx = 0 ; idx < file_lists.length ; idx++)
-//			{
-////				FileStatus one_file_s = file_lists[idx];
-//				Path lambda_path = one_file_s.getPath();
-//				FSDataInputStream fs = fileSystem.open(lambda_path);
-//				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-//				
-//				while ((line = fis.readLine()) != null) 
-//				{
-//					line_arr = line.split("\t");
-//					
-//					row_vec = gson.fromJson(line_arr[1], SimpleMatrix.class);
-//					
-//					Lambda_kv_hdfs.insertIntoThis(Integer.parseInt(line_arr[0]), 0, row_vec);
-//				}
-//				
-//				fis.close();
-//				fs.close();
-//			}
-//			
-//			System.out.println(Lambda_kv_hdfs.get(0, 1));
-//			System.out.println(Lambda_kv.get(0, 1));
-//			System.out.println(Lambda_kv_hdfs.get(3, 4));
-//			System.out.println(Lambda_kv.get(3, 4));
-//			System.out.println(Lambda_kv_hdfs.get(7, 4));
-//			System.out.println(Lambda_kv.get(7, 4));
-//			System.out.println(Lambda_kv_hdfs.get(2, 7));
-//			System.out.println(Lambda_kv.get(2, 7));
-//		}
-//		catch(java.lang.Throwable t)
-//		{
-//			t.printStackTrace();
-//			System.exit(1);
-//		}
-//		finally
-//		{
-//			System.exit(1);
-//		}
-//	}
 }

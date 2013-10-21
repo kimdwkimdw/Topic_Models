@@ -8,6 +8,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.special.Gamma;
+import org.apache.commons.math3.util.FastMath;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -19,12 +24,11 @@ import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
-import org.ejml.simple.SimpleMatrix;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import edu.kaist.uilab.NoSyu.utils.Matrix_Functions;
+import edu.kaist.uilab.NoSyu.utils.Matrix_Functions_ACM3;
 
 public class LDA_DOnline_Reducer 
 {
@@ -47,7 +51,8 @@ public class LDA_DOnline_Reducer
 	public static class LDA_DO_Reducer extends MapReduceBase implements Reducer<IntWritable, Text, Text, Text>
 	{
 		private int TopicNum;	// Number of Topic				== K
-		private double Doc_Mini_Num;	// Number of Document / Size of Minibatch
+		private double DocumentNum;	// Number of Document
+		private double minibatch_size;	// Minibatch size
 		private int VocaNum;	// Size of Dictionary of words	== V
 		
 		private double eta;		// Hyper-parameter for beta
@@ -56,7 +61,7 @@ public class LDA_DOnline_Reducer
 		private Gson gson;
 		private Type IntegerDoubleMap;
 		
-		private SimpleMatrix Lambda_kv;				// lambda
+		private Array2DRowRealMatrix Lambda_kv;				// lambda
 		
 //		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
 		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException
@@ -65,7 +70,21 @@ public class LDA_DOnline_Reducer
 			
 			if(-1 == key_int)
 			{
+				// sum_score and sum_word_count
+				double sum_sum_score = 0;
+				double sum_sum_word_count = 0;
+				String[] line_arr = null;
 				
+				while(values.hasNext())
+				{
+					line_arr = values.next().toString().split("\t");
+					sum_sum_score += Double.parseDouble(line_arr[0]);
+					sum_sum_word_count += Double.parseDouble(line_arr[1]);
+				}
+				
+				double perplexity_value = Compute_perplexity(sum_sum_score, sum_sum_word_count);
+				
+				output.collect(new Text("perp"), new Text(key_int + "\t" + perplexity_value));
 			}
 			else if(key_int >= 0)
 			{
@@ -94,29 +113,27 @@ public class LDA_DOnline_Reducer
 				}
 				
 				// HashMap to SimpleMatrix
-				SimpleMatrix sum_ss_lambda = new SimpleMatrix(1, VocaNum);
+				ArrayRealVector sum_ss_lambda = new ArrayRealVector(VocaNum);
 				
 				for(Map.Entry<Integer, Double> one_entry : lambda_ss_k.entrySet())
 				{
 					temp_key = one_entry.getKey();
 					temp_value = one_entry.getValue();
-					sum_ss_lambda.set(0, temp_key, temp_value);
+					sum_ss_lambda.setEntry(temp_key, temp_value);
 				}
 				
 				// Set delta lambda
-				SimpleMatrix delta_lambda_k = new SimpleMatrix(1, VocaNum);
-				delta_lambda_k.set(eta);
-
-				delta_lambda_k = delta_lambda_k.plus(sum_ss_lambda.scale(Doc_Mini_Num));
+				sum_ss_lambda.mapMultiplyToSelf(DocumentNum / minibatch_size);	// 1 x V
+				sum_ss_lambda.mapAddToSelf(eta);
 				
 				// Update lambda
-				SimpleMatrix temp_1 = read_lambda_kv_by_k(key_int).scale(1 - rho_t);
-				SimpleMatrix temp_2 = delta_lambda_k.scale(rho_t);
-				SimpleMatrix updated_lambda_v = temp_1.plus(temp_2);	// 1 x V
+				ArrayRealVector lambda_kv_row_vec = (ArrayRealVector) read_lambda_kv_by_k(key_int);
+				ArrayRealVector temp_1 = (ArrayRealVector) lambda_kv_row_vec.mapMultiply(1.0 - rho_t);
+				ArrayRealVector temp_2 = (ArrayRealVector) sum_ss_lambda.mapMultiply(rho_t);
+				ArrayRealVector updated_lambda_v = temp_1.add(temp_2);	// 1 x V
 				
 				// Output is Topic index and updated lambda for this topic index
-				output.collect(new Text("lambda"), new Text(key_int + "\t" + gson.toJson(updated_lambda_v)));
-//				output.collect(new IntWritable(key_int), new Text(gson.toJson(updated_lambda_v)));
+				output.collect(new Text("lambda"), new Text(key_int + "\t" + gson.toJson(updated_lambda_v.getDataRef())));
 			}
 			else
 			{
@@ -128,7 +145,8 @@ public class LDA_DOnline_Reducer
 		public void configure(JobConf job) 
 		{
 			// Get information
-			Doc_Mini_Num = Double.parseDouble(job.get("Doc_Mini_Num"));
+			DocumentNum = Double.parseDouble(job.get("DocumentNum"));
+			minibatch_size = Double.parseDouble(job.get("minibatch_size"));
 			VocaNum = Integer.parseInt(job.get("VocaNum"));
 			rho_t = Double.parseDouble(job.get("rho_t"));
 			eta = Double.parseDouble(job.get("eta"));
@@ -142,14 +160,14 @@ public class LDA_DOnline_Reducer
 			// Lambda_kv load
 			try
 			{
-				Lambda_kv = new SimpleMatrix(TopicNum, VocaNum);
+				Lambda_kv = new Array2DRowRealMatrix(TopicNum, VocaNum);
 				
 				FileSystem fileSystem = FileSystem.get(job);
 				Path lambda_dir_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
 				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
 				String line = null;
 				String[] line_arr = null;
-				SimpleMatrix row_vec = null;
+				double[] row_vec = null;
 				
 				for(FileStatus one_file_s : file_lists)
 				{
@@ -161,9 +179,9 @@ public class LDA_DOnline_Reducer
 					{
 						line_arr = line.split("\t");
 						
-						row_vec = gson.fromJson(line_arr[1], SimpleMatrix.class);
+						row_vec = gson.fromJson(line_arr[1], double[].class);
 						
-						Lambda_kv.insertIntoThis(Integer.parseInt(line_arr[0]), 0, row_vec);
+						Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
 					}
 					
 					fis.close();
@@ -174,31 +192,43 @@ public class LDA_DOnline_Reducer
 			{
 				t.printStackTrace();
 			}
-			
-//			try
-//			{
-//				FileSystem fileSystem = FileSystem.get(job);
-//				Path lambda_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
-//				FSDataInputStream fs = fileSystem.open(lambda_path);
-//				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-//
-//				Lambda_kv = gson.fromJson(fis, SimpleMatrix.class);
-//				
-//				fis.close();
-//				fs.close();
-//			}
-//			catch (Throwable t) 
-//			{
-//				t.printStackTrace();
-//			}
 		}
 
 		/*
 		 * Return vector for topic index in Lambda_kv 
 		 * */
-		private SimpleMatrix read_lambda_kv_by_k(int topic_idx)
+		private RealVector read_lambda_kv_by_k(int topic_idx)
 		{
-			return Lambda_kv.extractVector(true, topic_idx);
+			return Lambda_kv.getRowVector(topic_idx);
+		}
+		
+		
+		/*
+		 * Compute perplexity
+		 * */
+		private double Compute_perplexity(double sum_score, double sum_word_count)
+		{
+			// Compute for perplexity
+			sum_score *= DocumentNum / minibatch_size;
+			
+			Array2DRowRealMatrix Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
+			Array2DRowRealMatrix temp_matrix = (Array2DRowRealMatrix) Lambda_kv.scalarMultiply(-1).scalarAdd(eta);
+			temp_matrix = Matrix_Functions_ACM3.elementwise_mul_two_matrix(temp_matrix, Expectation_Lambda_kv);
+			sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
+			
+			temp_matrix = Matrix_Functions_ACM3.Do_Gammaln_return(Lambda_kv);
+			temp_matrix = (Array2DRowRealMatrix) temp_matrix.scalarAdd(-Gamma.logGamma(eta));
+			sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
+			
+			ArrayRealVector temp_vector = Matrix_Functions_ACM3.Fold_Col(Lambda_kv);
+			temp_vector = Matrix_Functions_ACM3.Do_Gammaln_return(temp_vector);
+			temp_vector.mapMultiplyToSelf(-1);
+			temp_vector.mapAddToSelf(Gamma.logGamma(eta * VocaNum));
+			sum_score += Matrix_Functions_ACM3.Fold_Vec(temp_vector);
+			
+			double perwordbound = sum_score * minibatch_size / (DocumentNum * sum_word_count);
+			
+			return FastMath.exp(-perwordbound);		
 		}
 	}
 }

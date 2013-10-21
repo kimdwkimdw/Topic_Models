@@ -48,7 +48,19 @@ public class LDA_DOnline_Combiner
 			
 			if(-1 == key_int)
 			{
+				// sum_score and sum_word_count
+				double sum_sum_score = 0;
+				double sum_sum_word_count = 0;
+				String[] line_arr = null;
 				
+				while(values.hasNext())
+				{
+					line_arr = values.next().toString().split("\t");
+					sum_sum_score += Double.parseDouble(line_arr[0]);
+					sum_sum_word_count += Double.parseDouble(line_arr[1]);
+				}
+				
+				output.collect(new IntWritable(key_int), new Text(String.valueOf(sum_sum_score) + "\t" + String.valueOf(sum_sum_word_count)));
 			}
 			else if(key_int >= 0)
 			{
