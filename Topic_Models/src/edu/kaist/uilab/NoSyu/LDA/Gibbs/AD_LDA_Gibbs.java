@@ -3,7 +3,6 @@ package edu.kaist.uilab.NoSyu.LDA.Gibbs;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -26,11 +25,9 @@ public class AD_LDA_Gibbs
 	public static double beta;		// beta, symmetric beta
 
 	private IntegerMatrix M_TW;	// topic-word matrix
-	private IntegerMatrix M_DT;		// document-topic matrix
 	private int[] sum_TW;		// number of words in each topic
 
 	public static IntegerMatrix[] M_TW_sub;	// M_TW matrix array, for distributing to each thread
-	public static IntegerMatrix[] M_DT_sub;	// M_DT matrix array, for distributing to each thread
 
 	public static List<Document_LDA_Gibbs> documents;	// Document list 
 
@@ -65,7 +62,6 @@ public class AD_LDA_Gibbs
 		this.thread_cnt = thread_cnt;
 
 		this.M_TW = new IntegerMatrix(this.TopicCnt, AD_LDA_Gibbs.WordCnt);
-		this.M_DT = new IntegerMatrix(this.DocCnt, this.TopicCnt);
 
 		// Set alpha_vec
 		AD_LDA_Gibbs.alpha_vec = new double[this.TopicCnt];
@@ -95,16 +91,13 @@ public class AD_LDA_Gibbs
 
 		// Create threads
 		AD_LDA_Gibbs.M_TW_sub = new IntegerMatrix[this.thread_cnt];
-		AD_LDA_Gibbs.M_DT_sub = new IntegerMatrix[this.thread_cnt];
 		this.sub_thread = new Thread[this.thread_cnt];
 
 		this.boundary_doc_idx_by_thread[0] = 0;
 		this.boundary_doc_idx_by_thread[1] = divide_num;
 		int s_idx = 0;
 		int e_idx = divide_num;
-		int doccnt = e_idx - s_idx + 1;
 		AD_LDA_Gibbs.M_TW_sub[0] = new IntegerMatrix(this.TopicCnt, AD_LDA_Gibbs.WordCnt);
-		AD_LDA_Gibbs.M_DT_sub[0] = new IntegerMatrix(doccnt, this.TopicCnt);
 		this.sub_thread[0] = new Thread(new AD_LDA_Gibbs_thread(0, this.TopicCnt, AD_LDA_Gibbs.WordCnt, 0, divide_num));
 		for(int idx = 1 ; idx < thread_cnt_m_1 ; idx++)
 		{
@@ -112,18 +105,14 @@ public class AD_LDA_Gibbs
 			e_idx = ((idx + 1) * divide_num);
 			this.boundary_doc_idx_by_thread[(idx*2)] = s_idx;
 			this.boundary_doc_idx_by_thread[((idx*2)+1)] = e_idx;
-			doccnt = e_idx - s_idx + 1;
 			AD_LDA_Gibbs.M_TW_sub[idx] = new IntegerMatrix(this.TopicCnt, AD_LDA_Gibbs.WordCnt);
-			AD_LDA_Gibbs.M_DT_sub[idx] = new IntegerMatrix(doccnt, this.TopicCnt);
 			this.sub_thread[idx] = new Thread(new AD_LDA_Gibbs_thread(idx, this.TopicCnt, AD_LDA_Gibbs.WordCnt, s_idx, e_idx));
 		}
 		s_idx = ((thread_cnt_m_1 * divide_num) + 1);
 		e_idx = (this.DocCnt - 1);
 		this.boundary_doc_idx_by_thread[(thread_cnt_m_1*2)] = s_idx;
 		this.boundary_doc_idx_by_thread[((thread_cnt_m_1*2)+1)] = e_idx;
-		doccnt = e_idx - s_idx + 1;
 		AD_LDA_Gibbs.M_TW_sub[thread_cnt_m_1] = new IntegerMatrix(this.TopicCnt, AD_LDA_Gibbs.WordCnt);
-		AD_LDA_Gibbs.M_DT_sub[thread_cnt_m_1] = new IntegerMatrix(doccnt, this.TopicCnt);
 		this.sub_thread[thread_cnt_m_1] = new Thread(new AD_LDA_Gibbs_thread(thread_cnt_m_1, this.TopicCnt, AD_LDA_Gibbs.WordCnt, s_idx, e_idx));
 	}
 
@@ -162,20 +151,20 @@ public class AD_LDA_Gibbs
 		for(int idx = 1 ; idx < iteration_num ; idx++)
 		{
 			// Synchronized M_DT, M_TW
-			for(int jdx = 0 ; jdx < this.thread_cnt ; jdx++)
-			{
-				int end_row_idx = this.boundary_doc_idx_by_thread[(jdx*2)+1];
-				IntegerMatrix target_sub_matrix = AD_LDA_Gibbs.M_DT_sub[jdx];
-
-				for(int doc_idx = this.boundary_doc_idx_by_thread[(jdx*2)] ; doc_idx <= end_row_idx ; doc_idx++)
-				{
-					int target_sub_matrix_row_idx = doc_idx - this.boundary_doc_idx_by_thread[(jdx*2)];
-					for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
-					{
-						this.M_DT.setValuetoElement(doc_idx, topic_idx, target_sub_matrix.getValue(target_sub_matrix_row_idx, topic_idx));
-					}
-				}
-			}
+//			for(int jdx = 0 ; jdx < this.thread_cnt ; jdx++)
+//			{
+//				int end_row_idx = this.boundary_doc_idx_by_thread[(jdx*2)+1];
+//				IntegerMatrix target_sub_matrix = AD_LDA_Gibbs.M_DT_sub[jdx];
+//
+//				for(int doc_idx = this.boundary_doc_idx_by_thread[(jdx*2)] ; doc_idx <= end_row_idx ; doc_idx++)
+//				{
+//					int target_sub_matrix_row_idx = doc_idx - this.boundary_doc_idx_by_thread[(jdx*2)];
+//					for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
+//					{
+//						this.M_DT.setValuetoElement(doc_idx, topic_idx, target_sub_matrix.getValue(target_sub_matrix_row_idx, topic_idx));
+//					}
+//				}
+//			}
 						
 			for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
 			{
@@ -267,7 +256,7 @@ public class AD_LDA_Gibbs
 				new_topic_idx_k = oRandom.nextInt(TopicCnt);
 
 				// Update variables
-				this.M_DT.incValue(doc_m.get_document_idx(), new_topic_idx_k);	// increment document-topic count
+//				this.M_DT.incValue(doc_m.get_document_idx(), new_topic_idx_k);	// increment document-topic count
 				this.M_TW.incValue(new_topic_idx_k, word_mn.GetWordIndex());		// increment topic-term count
 				(this.sum_TW[new_topic_idx_k])++;									// increment topic-term sum
 				doc_m.topic_set(new_topic_idx_k);								// increment document-topic sum
@@ -278,19 +267,19 @@ public class AD_LDA_Gibbs
 		// Copy to each sub matrix
 		for(int jdx = 0 ; jdx < this.thread_cnt ; jdx++)
 		{
-			int end_row_idx = this.boundary_doc_idx_by_thread[(jdx*2)+1];
-			IntegerMatrix target_sub_matrix = AD_LDA_Gibbs.M_DT_sub[jdx];
+//			int end_row_idx = this.boundary_doc_idx_by_thread[(jdx*2)+1];
+//			IntegerMatrix target_sub_matrix = AD_LDA_Gibbs.M_DT_sub[jdx];
+//
+//			for(int row_idx = this.boundary_doc_idx_by_thread[(jdx*2)] ; row_idx <= end_row_idx ; row_idx++)
+//			{
+//				int target_sub_matrix_row_idx = row_idx - this.boundary_doc_idx_by_thread[(jdx*2)];
+//				for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
+//				{
+//					target_sub_matrix.setValuetoElement(target_sub_matrix_row_idx, topic_idx, this.M_DT.getValue(row_idx, topic_idx));
+//				}
+//			}
 
-			for(int row_idx = this.boundary_doc_idx_by_thread[(jdx*2)] ; row_idx <= end_row_idx ; row_idx++)
-			{
-				int target_sub_matrix_row_idx = row_idx - this.boundary_doc_idx_by_thread[(jdx*2)];
-				for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
-				{
-					target_sub_matrix.setValuetoElement(target_sub_matrix_row_idx, topic_idx, this.M_DT.getValue(row_idx, topic_idx));
-				}
-			}
-
-			target_sub_matrix = AD_LDA_Gibbs.M_TW_sub[jdx];
+			IntegerMatrix target_sub_matrix = AD_LDA_Gibbs.M_TW_sub[jdx];
 
 			for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
 			{
@@ -344,15 +333,20 @@ public class AD_LDA_Gibbs
 		{
 			alpha_sum += AD_LDA_Gibbs.alpha_vec[topic_idx];
 		}
-
+		
 		// For all documents
+		Document_LDA_Gibbs target_doc = null;
+		int[] assigned_topic_freq_target_doc = null;
 		for(int doc_idx = 0 ; doc_idx < this.DocCnt ; doc_idx++)
 		{
-			likelihood += -Gamma.logGamma(AD_LDA_Gibbs.documents.get(doc_idx).get_topic_sum() + alpha_sum) + Gamma.logGamma(alpha_sum);
-
+			target_doc = AD_LDA_Gibbs.documents.get(doc_idx);
+			assigned_topic_freq_target_doc = target_doc.get_assigned_topic_freq(this.TopicCnt);
+			
+			likelihood += -Gamma.logGamma(target_doc.get_topic_sum() + alpha_sum) + Gamma.logGamma(alpha_sum);
+			
 			for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
 			{
-				likelihood += Gamma.logGamma(this.M_DT.getValue(doc_idx, topic_idx) + AD_LDA_Gibbs.alpha_vec[topic_idx]) - Gamma.logGamma(AD_LDA_Gibbs.alpha_vec[topic_idx]);
+				likelihood += Gamma.logGamma(assigned_topic_freq_target_doc[topic_idx] + AD_LDA_Gibbs.alpha_vec[topic_idx]) - Gamma.logGamma(AD_LDA_Gibbs.alpha_vec[topic_idx]);
 			}
 		}
 
@@ -397,7 +391,7 @@ public class AD_LDA_Gibbs
 				denominator = 0;
 				for(int doc_idx = 0 ; doc_idx < this.DocCnt ; doc_idx++)
 				{
-					numerator += Gamma.digamma(this.M_DT.getValue(doc_idx, topic_idx) + AD_LDA_Gibbs.alpha_vec[topic_idx]);
+					numerator += Gamma.digamma(AD_LDA_Gibbs.documents.get(doc_idx).get_assigned_spcific_topic_freq(topic_idx) + AD_LDA_Gibbs.alpha_vec[topic_idx]);
 					denominator += Gamma.digamma(AD_LDA_Gibbs.documents.get(doc_idx).get_topic_sum() + alpha_sum); 
 				}
 				numerator -= this.DocCnt * Gamma.digamma(AD_LDA_Gibbs.alpha_vec[topic_idx]);
@@ -490,16 +484,16 @@ public class AD_LDA_Gibbs
 	{
 		try
 		{
-			this.M_DT.writeMatrixToCSVFile("C_DT_" + version + "_" + this.TopicCnt + "_" + this.iteration_num + ".csv");
+//			this.M_DT.writeMatrixToCSVFile("C_DT_" + version + "_" + this.TopicCnt + "_" + this.iteration_num + ".csv");
 			this.M_TW.writeMatrixToCSVFile("C_WT_" + version + "_" + this.TopicCnt + "_" + this.iteration_num + ".csv", this.Vocabulary);
 			this.M_TW.transpose().writeRankingFile("C_WT_R_" + version + "_" + this.TopicCnt + "_" + this.iteration_num + ".csv", this.Vocabulary, this.ranking_num);
 
-			List<String> Document_name = new ArrayList<String>();
-			for(int doc_idx = 0 ; doc_idx < this.DocCnt ; doc_idx++)
-			{
-				Document_name.add(AD_LDA_Gibbs.documents.get(doc_idx).get_filename());
-			}
-			this.M_DT.writeRankingFile("C_DT_R_" + version + "_" + this.TopicCnt + "_" + this.iteration_num + ".csv", Document_name, this.ranking_num);
+//			List<String> Document_name = new ArrayList<String>();
+//			for(int doc_idx = 0 ; doc_idx < this.DocCnt ; doc_idx++)
+//			{
+//				Document_name.add(AD_LDA_Gibbs.documents.get(doc_idx).get_filename());
+//			}
+//			this.M_DT.writeRankingFile("C_DT_R_" + version + "_" + this.TopicCnt + "_" + this.iteration_num + ".csv", Document_name, this.ranking_num);
 
 			// alpha_beta
 			PrintWriter out = new PrintWriter(new FileWriter(new File("Alpha_Beta_" + version + "_" + this.TopicCnt + "_" + this.iteration_num + ".csv")));
@@ -516,7 +510,6 @@ public class AD_LDA_Gibbs
 		{
 			Miscellaneous_function.Print_String_with_Date("Error! in LDA_Gibbs class in ExportResultCSV\n" + ee.toString());
 		}
-
 	}
 
 	/*

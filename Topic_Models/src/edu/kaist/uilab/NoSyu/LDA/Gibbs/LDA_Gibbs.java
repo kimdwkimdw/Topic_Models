@@ -379,12 +379,12 @@ public class LDA_Gibbs
 			this.M_TW.writeMatrixToCSVFile("C_WT_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv", this.Vocabulary);
 			this.M_TW.transpose().writeRankingFile("C_WT_R_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv", this.Vocabulary, this.ranking_num);
 			
-			List<String> Document_name = new ArrayList<String>();
-			for(int doc_idx = 0 ; doc_idx < this.DocNum ; doc_idx++)
-			{
-				Document_name.add(this.documents.get(doc_idx).get_filename());
-			}
-			this.M_DT.writeRankingFile("C_DT_R_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv", Document_name, this.ranking_num);
+//			List<String> Document_name = new ArrayList<String>();
+//			for(int doc_idx = 0 ; doc_idx < this.DocNum ; doc_idx++)
+//			{
+//				Document_name.add(this.documents.get(doc_idx).get_filename());
+//			}
+//			this.M_DT.writeRankingFile("C_DT_R_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv", Document_name, this.ranking_num);
 			
 			// alpha_beta
 			PrintWriter out = new PrintWriter(new FileWriter(new File("Alpha_Beta_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv")));

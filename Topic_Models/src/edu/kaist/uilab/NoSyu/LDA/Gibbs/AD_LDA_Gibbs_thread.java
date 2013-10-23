@@ -12,7 +12,6 @@ class AD_LDA_Gibbs_thread implements Runnable
 	private int TopicCnt;	// Number of topics							== K
 	
 	private IntegerMatrix M_TW;	// topic-word matrix
-	private IntegerMatrix M_DT;	// document-topic matrix
 	private int[] sum_TW;		// number of words in each topic
 	
 	private int document_start_idx;		// start point of document list
@@ -38,7 +37,6 @@ class AD_LDA_Gibbs_thread implements Runnable
 		this.sum_TW = new int[topiccnt];
 		
 		this.M_TW = AD_LDA_Gibbs.M_TW_sub[this.thread_num];
-		this.M_DT = AD_LDA_Gibbs.M_DT_sub[this.thread_num];
 		
 		this.oRandom = new Random();
 		
@@ -84,14 +82,12 @@ class AD_LDA_Gibbs_thread implements Runnable
 		double[] prob_arr_for_i = new double[this.TopicCnt];	// word probability of each topic
 		int word_mn_wordidx = 0;
 		int doc_m_word_length = 0;
-		int target_doc_idx = -1;
 		
 		// All documents
 		for(int doc_idx = this.document_start_idx ; doc_idx <= this.document_end_idx ; doc_idx++)
 		{
 			doc_m = AD_LDA_Gibbs.documents.get(doc_idx);
 			doc_m_word_length = doc_m.get_word_length();
-			target_doc_idx = doc_idx - this.document_start_idx;
 			
 			// All words in a document
 			for(int word_idx = 0 ; word_idx < doc_m_word_length ; word_idx++)
@@ -102,7 +98,6 @@ class AD_LDA_Gibbs_thread implements Runnable
 				// for the current assignment of k to a term t for word w_m,n
 				// decrement it
 				old_topic_idx_k = word_mn.GetTopicIndex();
-				this.M_DT.decValue(target_doc_idx, old_topic_idx_k);
 				this.M_TW.decValue(old_topic_idx_k, word_mn_wordidx);
 				(this.sum_TW[old_topic_idx_k])--;
 				doc_m.topic_unset(old_topic_idx_k);
@@ -110,12 +105,14 @@ class AD_LDA_Gibbs_thread implements Runnable
 				// Multinomial sampling
 				// Fill prob_arr_for_i
 				double prob_sum = 0;
+				int[] assigned_topic_freq_target_doc = null;
+				assigned_topic_freq_target_doc = doc_m.get_assigned_topic_freq(this.TopicCnt);
 				for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
 				{
 					prob_arr_for_i[topic_idx] = 
 							((this.M_TW.getValue(topic_idx, word_mn_wordidx) + AD_LDA_Gibbs.beta) /
 									(this.sum_TW[topic_idx] + (AD_LDA_Gibbs.WordCnt * AD_LDA_Gibbs.beta))) * 
-									(this.M_DT.getValue(target_doc_idx, topic_idx) + AD_LDA_Gibbs.alpha_vec[topic_idx]);
+									(assigned_topic_freq_target_doc[topic_idx] + AD_LDA_Gibbs.alpha_vec[topic_idx]);
 					prob_sum += prob_arr_for_i[topic_idx];
 				}
 				// http://en.wikipedia.org/wiki/Multinomial_distribution#Sampling_from_a_multinomial_distribution
@@ -132,9 +129,8 @@ class AD_LDA_Gibbs_thread implements Runnable
 
 				// for the new assignment of z_m,n to the term t for word w_m,n
 				// increment it
-				this.M_DT.incValue(target_doc_idx, new_topic_idx_k);	// increment document-topic count
-				this.M_TW.incValue(new_topic_idx_k, word_mn.GetWordIndex());		// increment topic-term count
-				(this.sum_TW[new_topic_idx_k])++;									// increment topic-term sum
+				this.M_TW.incValue(new_topic_idx_k, word_mn.GetWordIndex());	// increment topic-term count
+				(this.sum_TW[new_topic_idx_k])++;								// increment topic-term sum
 				doc_m.topic_set(new_topic_idx_k);								// increment document-topic sum
 				word_mn.SetTopicIndex(new_topic_idx_k);
 			}	// End of while(it_word.hasNext())
