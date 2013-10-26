@@ -76,24 +76,22 @@ class AD_LDA_Gibbs_thread implements Runnable
 	private void LDA_Gibbs_Sampling()
 	{
 		Document_LDA_Gibbs doc_m = null;
-		Word word_mn = null;
+		Word[] word_mn_list = null;
 		int old_topic_idx_k = 0;	// Previous topic index of a word
 		int new_topic_idx_k = 0;	// Sampled new topic index of word
 		double[] prob_arr_for_i = new double[this.TopicCnt];	// word probability of each topic
 		int word_mn_wordidx = 0;
-		int doc_m_word_length = 0;
+		int[] assigned_topic_freq_target_doc = null;
 		
 		// All documents
 		for(int doc_idx = this.document_start_idx ; doc_idx <= this.document_end_idx ; doc_idx++)
 		{
 			doc_m = AD_LDA_Gibbs.documents.get(doc_idx);
-			doc_m_word_length = doc_m.get_word_length();
 			
 			// All words in a document
-			for(int word_idx = 0 ; word_idx < doc_m_word_length ; word_idx++)
+			word_mn_list = doc_m.getword_vec();
+			for(Word word_mn : word_mn_list)
 			{
-				word_mn = doc_m.getword_vec().get(word_idx);
-
 				word_mn_wordidx = word_mn.GetWordIndex();
 				// for the current assignment of k to a term t for word w_m,n
 				// decrement it
@@ -105,7 +103,7 @@ class AD_LDA_Gibbs_thread implements Runnable
 				// Multinomial sampling
 				// Fill prob_arr_for_i
 				double prob_sum = 0;
-				int[] assigned_topic_freq_target_doc = null;
+				
 				assigned_topic_freq_target_doc = doc_m.get_assigned_topic_freq(this.TopicCnt);
 				for(int topic_idx = 0 ; topic_idx < this.TopicCnt ; topic_idx++)
 				{

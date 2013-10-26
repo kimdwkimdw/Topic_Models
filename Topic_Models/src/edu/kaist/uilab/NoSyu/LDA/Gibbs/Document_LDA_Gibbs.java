@@ -1,7 +1,6 @@
 package edu.kaist.uilab.NoSyu.LDA.Gibbs;
 
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.StringTokenizer;
 
 /*
@@ -11,19 +10,8 @@ public class Document_LDA_Gibbs
 {
 	private int document_idx;		// document index
 	private int topic_sum;			// Sum of topic. Good for computing p(z|alpha)
-	private ArrayList<Word> word_vec;	// List of words in a document
-//	private String filename;		// FileName
-	
-//	/*
-//	 * Constructor
-//	 * */
-//	public Document_LDA_Gibbs(int document_idx)
-//	{
-//		this.document_idx = document_idx;
-//		this.topic_sum = 0;
-//		this.word_vec = new ArrayList<Word>();
-//		
-//	}
+	private Word[] word_vec;
+	private String filename;		// FileName
 	
 	/*
 	 * Constructor
@@ -34,7 +22,8 @@ public class Document_LDA_Gibbs
 	{
 		this.document_idx = document_idx;
 		this.topic_sum = 0;
-		this.word_vec = new ArrayList<Word>(get_total_words_in_a_doc(BOW_format));
+		int word_num = get_total_words_in_a_doc(BOW_format);
+		this.word_vec = new Word[word_num];
 		this.updateWords(BOW_format);
 	}
 	
@@ -46,11 +35,12 @@ public class Document_LDA_Gibbs
 	public void updateWords(String BOW_format)
 	{
 		StringTokenizer st = new StringTokenizer(BOW_format);
-//		this.filename = new String(st.nextToken());	// filename
+		this.filename = new String(st.nextToken());	// filename
 		String tmp_str = st.nextToken();			// wordnums
 		String[] temp_str_arr = null;
 		int wordNo = 0;
 		int freq = 0;
+		int word_all_idx = 0;
 		
 		while(st.hasMoreTokens())
 		{
@@ -61,7 +51,8 @@ public class Document_LDA_Gibbs
 			
 			for(int idx = 0 ; idx < freq ; idx++)
 			{
-				this.word_vec.add(new Word(wordNo));
+				this.word_vec[word_all_idx] = new Word(wordNo);
+				word_all_idx++;
 			}
 		}
 	}
@@ -74,7 +65,7 @@ public class Document_LDA_Gibbs
 	public int get_total_words_in_a_doc(String BOW_format)
 	{
 		StringTokenizer st = new StringTokenizer(BOW_format);
-		String tmp_str = st.nextToken();			// filename
+		String tmp_str = st.nextToken();	// filename
 		tmp_str = st.nextToken();			// wordnums
 		int total_freq = 0;
 		int freq = 0;
@@ -93,7 +84,7 @@ public class Document_LDA_Gibbs
 	/*
 	 * Get/Set Method
 	 * */
-	public ArrayList<Word> getword_vec()
+	public Word[] getword_vec()
 	{
 		return this.word_vec;
 	}
@@ -105,7 +96,7 @@ public class Document_LDA_Gibbs
 	
 	public int get_word_length()
 	{
-		return this.word_vec.size();
+		return this.word_vec.length;
 	}
 	
 	public int get_topic_sum()
@@ -113,10 +104,10 @@ public class Document_LDA_Gibbs
 		return this.topic_sum;
 	}
 	
-//	public String get_filename()
-//	{
-//		return this.filename;
-//	}
+	public String get_filename()
+	{
+		return this.filename;
+	}
 	
 	/*
 	 * Topic Assign
@@ -134,9 +125,9 @@ public class Document_LDA_Gibbs
 	/*
 	 * For calculating likelihood and optimizing
 	 * */
-	public int[] get_assigned_topic_freq(int topic_num)
+	public int[] get_assigned_topic_freq(int TopicCnt)
 	{
-		int[] freq_topic_arr = new int[topic_num];
+		int[] freq_topic_arr = new int[TopicCnt];
 		
 		for(Word each_word : word_vec)
 		{
@@ -159,5 +150,21 @@ public class Document_LDA_Gibbs
 		}
 		
 		return topic_freq;
+	}
+	
+	
+	/*
+	 * For printing theta (in fact, not exact value of theta, but can be infer with alpha)
+	 * */
+	public String get_assigned_topic_freq_str(int TopicCnt)
+	{
+		int[] target_vector = get_assigned_topic_freq(TopicCnt);
+		
+		String target_vector_str = Arrays.toString(target_vector);
+		
+		target_vector_str = target_vector_str.replaceAll("[", "");
+		target_vector_str = target_vector_str.replaceAll("]", "");
+		
+		return target_vector_str;
 	}
 }

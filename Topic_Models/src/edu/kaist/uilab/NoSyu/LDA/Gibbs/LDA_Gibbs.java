@@ -91,9 +91,9 @@ public class LDA_Gibbs
 	public void LDA_Init()
 	{
 		Iterator<Document_LDA_Gibbs> it_doc = this.documents.iterator();
-		Iterator<Word> it_word;
+//		Iterator<Word> it_word;
 		Document_LDA_Gibbs doc_m;
-		Word word_mn;
+		Word[] word_mn_list;
 		int new_topic_idx_k;
 		
 		// All documents
@@ -101,12 +101,14 @@ public class LDA_Gibbs
 		{
 			doc_m = it_doc.next();
 			
-			it_word = doc_m.getword_vec().iterator();
+//			it_word = doc_m.getword_vec().iterator();
+			word_mn_list = doc_m.getword_vec();
 			
 			// All words in a document
-			while(it_word.hasNext())
+//			while(it_word.hasNext())
+			for(Word word_mn : word_mn_list)
 			{
-				word_mn = it_word.next();
+//				word_mn = it_word.next();
 				
 				// Sample k ~ Uniform(1/K)
 				new_topic_idx_k = oRandom.nextInt(TopicNum);
@@ -128,7 +130,8 @@ public class LDA_Gibbs
 	public void LDA_Gibbs_Sampling()
 	{
 		Document_LDA_Gibbs doc_m;
-		Word word_mn;
+//		Word word_mn;
+		Word[] word_mn_list;
 		int old_topic_idx_k;	// Previous topic index of a word
 		int new_topic_idx_k;	// Sampled new topic index of word
 		double[] prob_arr_for_i = new double[this.TopicNum];	// word probability of each topic
@@ -140,9 +143,11 @@ public class LDA_Gibbs
 			doc_m = this.documents.get(doc_idx);
 
 			// All words in a document
-			for(int word_idx = 0 ; word_idx < doc_m.get_word_length() ; word_idx++)
+//			for(int word_idx = 0 ; word_idx < doc_m.get_word_length() ; word_idx++)
+			word_mn_list = doc_m.getword_vec();
+			for(Word word_mn : word_mn_list)
 			{
-				word_mn = doc_m.getword_vec().get(word_idx);
+//				word_mn = doc_m.getword_vec().get(word_idx);
 
 				word_mn_wordidx = word_mn.GetWordIndex();
 				// for the current assignment of k to a term t for word w_m,n
