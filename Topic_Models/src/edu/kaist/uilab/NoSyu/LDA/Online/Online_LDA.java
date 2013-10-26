@@ -16,123 +16,53 @@ import org.apache.commons.math3.util.FastMath;
 import edu.kaist.uilab.NoSyu.utils.Matrix_Functions_ACM3;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
 
-public class oLDA_Main 
+public class Online_LDA 
 {
-	private static int TopicNum;	// Number of Topic				== K
-	private static int VocaNum;	// Size of Dictionary of words	== V
-	private static double DocumentNum;	// Number of documents		== D
+	private int TopicNum;	// Number of Topic				== K
+	private int VocaNum;	// Size of Dictionary of words	== V
+	private double DocumentNum;	// Number of documents		== D
 	
-	private static int Max_Iter;	// Maximum number of iteration for E_Step
-	private static double convergence_limit = 0.001;
+	private int Max_Iter;	// Maximum number of iteration for E_Step
+	private double convergence_limit = 0.001;
 	
-	private static Array2DRowRealMatrix Lambda_kv;				// lambda
-	private static Array2DRowRealMatrix Expectation_Lambda_kv;				// Expectation of log beta
+	private Array2DRowRealMatrix Lambda_kv;				// lambda
+	private Array2DRowRealMatrix Expectation_Lambda_kv;				// Expectation of log beta
 	
-	private static ArrayRealVector alpha;	// Hyper-parameter for theta
-	private static double eta = 0.01;		// Hyper-parameter for beta
-	private static double tau0 = 1025.0;
-	private static double kappa = 0.7;
-	private static double update_t;
-	private static double rho_t;
-	private static int minibatch_size;
+	private ArrayRealVector alpha;	// Hyper-parameter for theta
+	private double eta = 0.01;		// Hyper-parameter for beta
+	private double tau0 = 1025.0;
+	private double kappa = 0.7;
+	private double update_t;
+	private double rho_t;
+	private int minibatch_size;
 	
-	private static String voca_file_path = null;
-	private static String BOW_file_path = null;
-	private static String output_file_name = null;
+	private ArrayList<Document_LDA_Online> document_list;
+	private ArrayList<String> Vocabulary_list;	// vocabulary
 	
-	private static ArrayList<Document_LDA_Online> document_list;
-	private static ArrayList<String> Vocabulary_list;	// vocabulary
+	private int max_rank = 30;
 	
-	private static int max_rank = 30;
+	private int[] topic_index_array = null;
 	
-	private static int[] topic_index_array = null;
-	
-	private static double sum_score;
-	private static double sum_word_count;
-	private static double loggamma_sum_alpha;
-	
-	public static void main(String[] args) 
-	{
-		// Initialize
-		Init(args);
-		
-		// Make Documents List
-		document_list = make_document_list();
-		List<Document_LDA_Online> minibatch_document_list = null;
-		
-		// Variables
-		int start_doc_idx = 0;
-		int last_doc_idx = minibatch_size;
-		double minibatch_size_this_iter = 0;
-		Array2DRowRealMatrix sumed_ss_lambda = null;
-		
-		// Run oLDA
-		while(true)
-		{
-			// Start
-			minibatch_document_list = document_list.subList(start_doc_idx, last_doc_idx);
-			minibatch_size_this_iter = (double)(minibatch_document_list.size());
-			sum_score = 0;
-			sum_word_count = 0;
-			
-			// E step
-			sumed_ss_lambda = E_Step(minibatch_document_list);
-			
-			// Print perplexity
-			System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_size_this_iter));
-			
-			// M step
-			M_Step(sumed_ss_lambda, minibatch_size_this_iter);
-			
-			// Update index variable
-			update_t++;
-			start_doc_idx = last_doc_idx;
-			last_doc_idx += minibatch_size;
-			
-			if(last_doc_idx >= DocumentNum)
-			{
-				last_doc_idx = (int)DocumentNum;
-				
-				// Start
-				minibatch_document_list = document_list.subList(start_doc_idx, last_doc_idx);
-				minibatch_size_this_iter = (double)(minibatch_document_list.size());
-				sum_score = 0;
-				sum_word_count = 0;
-				
-				// E step
-				sumed_ss_lambda = E_Step(minibatch_document_list);
-				
-				// Print perplexity
-				System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_size_this_iter));
-				
-				// M step
-				M_Step(sumed_ss_lambda, minibatch_size_this_iter);
-				
-				break;
-			}
-		}
-		
-		// Print result
-		// with Lambda
-		ExportResultCSV();
-	}
+	private double sum_score;
+	private double sum_word_count;
+	private double loggamma_sum_alpha;
 
+	
 	/*
-	 * Initialize parameters
+	 * Constructor 
 	 * */
-	private static void Init(String[] args)
+	public Online_LDA(int topicnum, int max_iter, int minibatch_size, ArrayList<String> voca_list, ArrayList<Document_LDA_Online> doc_list)
 	{
 		try
 		{
-			TopicNum = Integer.parseInt(args[0]);
-			Max_Iter = Integer.parseInt(args[1]);
-			minibatch_size = Integer.parseInt(args[2]);
-			voca_file_path = new String(args[3]);
-			BOW_file_path = new String(args[4]);
-			output_file_name = new String(args[5]);
+			this.TopicNum = topicnum;
+			this.Max_Iter = max_iter;
+			this.minibatch_size = minibatch_size;
 			
-			Vocabulary_list = Miscellaneous_function.makeStringListFromFile(voca_file_path);
-			VocaNum = Vocabulary_list.size();
+			this.Vocabulary_list = voca_list;
+			this.VocaNum = Vocabulary_list.size();
+			this.document_list = doc_list;
+			this.DocumentNum = (double)(this.document_list.size());
 			
 			update_t = 0;
 			
@@ -141,7 +71,6 @@ public class oLDA_Main
 			
 			Lambda_kv = new Array2DRowRealMatrix(TopicNum, VocaNum);
 			Matrix_Functions_ACM3.SetGammaDistribution(Lambda_kv, 100.0, 0.01);
-//			Lambda_kv = Matrix_Functions_ACM3.load_matrix_txt("lambda_init.txt");
 			
 			Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
 			
@@ -159,9 +88,75 @@ public class oLDA_Main
 	}
 	
 	/*
+	 * Running function
+	 * */
+	public void oLDA_run()
+	{
+		// Variables
+		int start_doc_idx = 0;
+		int last_doc_idx = minibatch_size;
+		double minibatch_size_this_iter = 0;
+		Array2DRowRealMatrix sumed_ss_lambda = null;
+		List<Document_LDA_Online> minibatch_document_list = null;
+
+		// Run oLDA
+		while(true)
+		{
+			// Start
+			minibatch_document_list = document_list.subList(start_doc_idx, last_doc_idx);
+			minibatch_size_this_iter = (double)(minibatch_document_list.size());
+			sum_score = 0;
+			sum_word_count = 0;
+
+			// E step
+			sumed_ss_lambda = E_Step(minibatch_document_list);
+
+			// Print perplexity
+			System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_size_this_iter));
+
+			// M step
+			M_Step(sumed_ss_lambda, minibatch_size_this_iter);
+
+			// Update index variable
+			update_t++;
+			start_doc_idx = last_doc_idx;
+			last_doc_idx += minibatch_size;
+
+			if(last_doc_idx >= DocumentNum)
+			{
+				last_doc_idx = (int)DocumentNum;
+
+				// Start
+				minibatch_document_list = document_list.subList(start_doc_idx, last_doc_idx);
+				minibatch_size_this_iter = (double)(minibatch_document_list.size());
+				sum_score = 0;
+				sum_word_count = 0;
+
+				// E step
+				sumed_ss_lambda = E_Step(minibatch_document_list);
+
+				// Print perplexity
+				System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_size_this_iter));
+
+				// M step
+				M_Step(sumed_ss_lambda, minibatch_size_this_iter);
+
+				break;
+			}
+		}
+	}
+	
+//	public void main(String[] args) 
+//	{
+//		// Print result
+//		// with Lambda
+//		ExportResultCSV();
+//	}
+
+	/*
 	 * Make Documents list
 	 * */
-	private static ArrayList<Document_LDA_Online> make_document_list()
+	public ArrayList<Document_LDA_Online> make_document_list(String BOW_file_path)
 	{
 		ArrayList<Document_LDA_Online> documents = new ArrayList<Document_LDA_Online>();
 		
@@ -195,7 +190,7 @@ public class oLDA_Main
 	 * 	Document_LDA_Online_ACM3 target_document	- target document instance 
 	 * 	SimpleMatrix doc_Expe_Lambda_kv		- Expectation of log beta which matches vocabulary index in this document, K x V' 
 	 * */
-	private static Array2DRowRealMatrix E_Step(List<Document_LDA_Online> minibatch_document_list)
+	private Array2DRowRealMatrix E_Step(List<Document_LDA_Online> minibatch_document_list)
 	{
 		// Set delta lambda
 		Array2DRowRealMatrix sumed_ss_lambda = new Array2DRowRealMatrix(TopicNum, VocaNum);
@@ -205,8 +200,6 @@ public class oLDA_Main
 
 		for(Document_LDA_Online one_doc : minibatch_document_list)
 		{
-//			System.out.println("Document Name:\t" + one_doc.get_filename());
-			
 			voca_for_this_doc_index_array = one_doc.get_real_voca_index_array_sorted();
 			
 			Array2DRowRealMatrix doc_Expe_Lambda_kv = (Array2DRowRealMatrix) Expectation_Lambda_kv.getSubMatrix(topic_index_array, voca_for_this_doc_index_array);
@@ -235,7 +228,7 @@ public class oLDA_Main
 	 * 	Document_LDA_Online_ACM3 target_document	- target document instance 
 	 * 	SimpleMatrix doc_Expe_Lambda_kv		- Expectation of log beta which matches vocabulary index in this document, K x V' 
 	 * */
-	private static Array2DRowRealMatrix E_Step_for_one_doc(Document_LDA_Online target_document, Array2DRowRealMatrix doc_Expe_Lambda_kv)
+	private Array2DRowRealMatrix E_Step_for_one_doc(Document_LDA_Online target_document, Array2DRowRealMatrix doc_Expe_Lambda_kv)
 	{
 		// Iteration
 		target_document.Start_this_document(TopicNum);
@@ -299,7 +292,7 @@ public class oLDA_Main
 	/*
 	 * Run M Step
 	 * */
-	private static void M_Step(Array2DRowRealMatrix sumed_ss_lambda, double minibatch_size_now)
+	private void M_Step(Array2DRowRealMatrix sumed_ss_lambda, double minibatch_size_now)
 	{
 		// Compute rho_t
 		rho_t = Math.pow(tau0 + update_t, -kappa);
@@ -324,7 +317,7 @@ public class oLDA_Main
 	/*
 	 * Export result to CSV
 	 * */
-	private static void ExportResultCSV()
+	public void ExportResultCSV(String output_file_name)
 	{
 		try
 		{
@@ -364,7 +357,7 @@ public class oLDA_Main
 	/*
 	 * Compute perplexity
 	 * */
-	private static double Compute_perplexity(double minibatch_size_now)
+	private double Compute_perplexity(double minibatch_size_now)
 	{
 		// Compute for perplexity
 		sum_score *= DocumentNum / minibatch_size_now;
