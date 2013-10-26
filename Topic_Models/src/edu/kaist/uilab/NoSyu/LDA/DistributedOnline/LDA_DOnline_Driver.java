@@ -329,7 +329,6 @@ public class LDA_DOnline_Driver
 		conf.setMapOutputKeyClass(IntWritable.class);
 		conf.setMapOutputValueClass(Text.class);
 		
-//		conf.setOutputKeyClass(IntWritable.class);
 		conf.setOutputKeyClass(Text.class);
 		conf.setOutputValueClass(Text.class);
 
@@ -354,7 +353,6 @@ public class LDA_DOnline_Driver
 		conf.set("alpha_path", alpha_path_str);
 		conf.set("lambda_path", lambda_path_str);
 		
-//		conf.set("Doc_Mini_Num", String.valueOf(Doc_Mini_Num));
 		conf.set("VocaNum", String.valueOf(VocaNum));
 		
 		// Compute rho_t
