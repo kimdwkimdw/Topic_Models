@@ -1032,11 +1032,11 @@ public class Matrix_Functions_ACM3
 		{
 			double[] temp_row_vec = null;
 			int[] sorted_idx = null;
-			int col_dim = input_matrix.getColumnDimension();
+			int row_dim = input_matrix.getRowDimension();
 			
 			PrintWriter rank_out = new PrintWriter(new FileWriter(new File(file_path)));
 			
-			for(int topic_idx = 0 ; topic_idx < col_dim ; topic_idx++)
+			for(int topic_idx = 0 ; topic_idx < row_dim ; topic_idx++)
 			{
 				temp_row_vec = input_matrix.getRow(topic_idx);
 				sorted_idx = Miscellaneous_function.Sort_Ranking_Double(temp_row_vec, max_rank);
@@ -1168,7 +1168,7 @@ public class Matrix_Functions_ACM3
 				return (value + target_vec.getEntry(column));
 			}
 		}
-		, target_row_idx, target_row_idx, 0, col_dim);
+		, target_row_idx, target_row_idx, 0, col_dim - 1);
 	}
 
 

@@ -8,6 +8,8 @@ import java.util.StringTokenizer;
 
 import org.apache.commons.math3.linear.ArrayRealVector;
 
+import edu.kaist.uilab.NoSyu.utils.Matrix_Functions_ACM3;
+
 /*
  * A document
  * */
@@ -15,7 +17,8 @@ public class Document_LDA_CollapsedVB
 {
 	private String filename;		// file name
 	public HashMap<Integer, ArrayRealVector> phi_dvk;	// phi_dvk
-	public double[] sum_phi_dvk_dv_E;	// for 1
+//	public double[] sum_phi_dvk_dv_E;	// for 1
+	private ArrayRealVector sum_phi_dvk_dv_E;
 //	private HashMap<Integer, Integer> number_dv;	// n_{document, vocabulary}. key: vocabulary index, value: frequency
 	
 	
@@ -26,10 +29,11 @@ public class Document_LDA_CollapsedVB
 	{
 		this.phi_dvk = new HashMap<Integer, ArrayRealVector>();
 //		this.number_dv = new HashMap<Integer, Integer>();
-		this.sum_phi_dvk_dv_E = new double[topic_size];
+//		this.sum_phi_dvk_dv_E = new double[topic_size];
+//		this.sum_phi_dvk_dv_E = new ArrayRealVector(topic_size);
 //		this.sum_phi_dvk_dv_Var = new double[topic_size];
 		this.updateWords(BOW_format, topic_size);
-		this.compute_sum_phi_dvk_dv_E_Var();
+		this.compute_sum_phi_dvk_dv_E_Var(topic_size);
 	}
 	
 	/*
@@ -75,14 +79,27 @@ public class Document_LDA_CollapsedVB
 		return this.filename;
 	}
 	
+	public ArrayRealVector get_sum_phi_dvk_dv_E()
+	{
+		return this.sum_phi_dvk_dv_E;
+	}
+	
+	public double get_sum_phi_dvk_dv_E_value(int topic_idx)
+	{
+		return this.sum_phi_dvk_dv_E.getEntry(topic_idx);
+	}
+	
+	public void inc_sum_phi_dvk_dv_E_value(int topic_idx, double value)
+	{
+		this.sum_phi_dvk_dv_E.addToEntry(topic_idx, value);
+	}
 	
 	/*
 	 * Compute sum_phi_dvk_dv_E by phi_dvk
 	 * Column fold sum
 	 * */
-	public void compute_sum_phi_dvk_dv_E_Var()
+	private void compute_sum_phi_dvk_dv_E_Var(int topic_size)
 	{
-		int topic_size = this.sum_phi_dvk_dv_E.length;
 		double[] temp_sums = new double[topic_size];
 		ArrayRealVector one_row_vec = null;
 		double temp_one_row_vec_col_idx = 0;
@@ -99,7 +116,8 @@ public class Document_LDA_CollapsedVB
 			}
 		}
 		
-		System.arraycopy(temp_sums, 0, this.sum_phi_dvk_dv_E, 0, topic_size);
+		this.sum_phi_dvk_dv_E = new ArrayRealVector(temp_sums);
+//		System.arraycopy(temp_sums, 0, this.sum_phi_dvk_dv_E, 0, topic_size);
 //		System.arraycopy(temp_sums_var, 0, this.sum_phi_dvk_dv_Var, 0, topic_size);
 	}
 	
@@ -108,11 +126,20 @@ public class Document_LDA_CollapsedVB
 	 * */
 	public String Get_Theta() throws Exception
 	{
-		String temp_str_arr = Arrays.toString(this.sum_phi_dvk_dv_E);
+		String temp_str_arr = Arrays.toString(this.sum_phi_dvk_dv_E.getDataRef());
 		temp_str_arr = temp_str_arr.replace("[", "");
 		temp_str_arr = temp_str_arr.replace("]", "");
 		return temp_str_arr;
 	}
+	
+	/*
+	 * Sum of sum_phi_dvk_dv_E
+	 * */
+	public double sum_of_sum_phi_dvk_dv_E()
+	{
+		return Matrix_Functions_ACM3.Fold_Vec(this.sum_phi_dvk_dv_E);
+	}
+	
 	
 //	/*
 //	 * Write theta for this document

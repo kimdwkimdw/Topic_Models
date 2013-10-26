@@ -8,6 +8,7 @@ import java.util.Map.Entry;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.special.Gamma;
 
 import edu.kaist.uilab.NoSyu.utils.Matrix_Functions_ACM3;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
@@ -60,7 +61,8 @@ public class LDA_Collapsed_VB
 		{
 			this.LDA_Collapsed_VB_Run();
 			
-			Miscellaneous_function.Print_String_with_Date("Iter = " + idx + "\tPerplexity = " + this.getPerplexity());
+//			Miscellaneous_function.Print_String_with_Date("Iter = " + idx + "\tPerplexity = " + this.getPerplexity());
+			Miscellaneous_function.Print_String_with_Date("Iter = " + idx + "\tLogLikelihood = " + this.getLogLikelihood());
 		}
 	}
 	
@@ -126,7 +128,7 @@ public class LDA_Collapsed_VB
 					prev_phi_dvk = one_row_vec.getEntry(target_topic_idx);
 					
 					// Compute phi_dvk using equation
-					first_term = this.alpha_vec.getEntry(target_topic_idx) + one_doc.sum_phi_dvk_dv_E[target_topic_idx] - prev_phi_dvk;
+					first_term = this.alpha_vec.getEntry(target_topic_idx) + one_doc.get_sum_phi_dvk_dv_E_value(target_topic_idx) - prev_phi_dvk;
 					second_term = this.beta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx) - prev_phi_dvk;
 					third_term = third_term_partial + this.sum_phi_dvk_dv_E.getEntry(target_topic_idx) - prev_phi_dvk;
 					
@@ -148,7 +150,7 @@ public class LDA_Collapsed_VB
 					
 					// Update
 					one_row_vec.setEntry(target_topic_idx, new_val);
-					one_doc.sum_phi_dvk_dv_E[target_topic_idx] += delta_val;
+					one_doc.inc_sum_phi_dvk_dv_E_value(target_topic_idx, delta_val);
 					this.sum_phi_dvk_d_E.addToEntry(target_voca_idx, target_topic_idx, delta_val);
 					this.sum_phi_dvk_dv_E.addToEntry(target_topic_idx, delta_val);
 				}
@@ -158,42 +160,63 @@ public class LDA_Collapsed_VB
 	
 	
 	/*
-	 * Perplexity
+	 * Log Likelihood
 	 * */
-	public double getPerplexity()
+	private double getLogLikelihood()
 	{
-		double perplexity = 0;
-		int target_voca_idx = 0;
-		double doc_expectation = 0;
-		double sum_alpha = Matrix_Functions_ACM3.Fold_Vec(this.alpha_vec);
-		double temp_sum_value = 0;
-		double theta_value = 0;
-		double phi_value = 0;
-		double third_term_partial = this.WordNum * this.beta;
+		return (this.getTopicLogLikelihood() + this.getDocumentLogLikelihood());
+	}
+
+	/*
+	 * Log Likelihood Topic Part
+	 * */
+	private double getTopicLogLikelihood()
+	{
+		double likelihood = 0;
+		double term_partial = this.WordNum * this.beta;
 		
-		for(Document_LDA_CollapsedVB one_doc : this.test_documents)
+		// For all topics
+		for(int topic_idx = 0 ; topic_idx < this.TopicNum ; topic_idx++)
 		{
-			doc_expectation = sum_one_double_arr(one_doc.sum_phi_dvk_dv_E);
-			
-			for(Entry<Integer, ArrayRealVector> one_entry : one_doc.phi_dvk.entrySet())
+			likelihood += -Gamma.logGamma(this.sum_phi_dvk_dv_E.getEntry(topic_idx) + term_partial) 
+					- this.WordNum * Gamma.logGamma(this.beta) 
+					+ Gamma.logGamma(this.WordNum * this.beta);
+
+			for(int word_idx = 0 ; word_idx < this.WordNum ; word_idx++)
 			{
-				target_voca_idx = one_entry.getKey();
-				
-				temp_sum_value = 0;
-				for(int target_topic_idx = 0; target_topic_idx < this.TopicNum ; target_topic_idx++)
-				{
-					theta_value = (this.alpha_vec.getEntry(target_topic_idx) + one_doc.sum_phi_dvk_dv_E[target_topic_idx]) / (sum_alpha + doc_expectation);
-					phi_value = (this.beta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx)) / (third_term_partial + this.sum_phi_dvk_dv_E.getEntry(target_topic_idx));
-					
-					temp_sum_value += theta_value * phi_value;
-				}
-				perplexity += Math.log(temp_sum_value);
+				likelihood += Gamma.logGamma(this.sum_phi_dvk_d_E.getEntry(word_idx, topic_idx) + this.beta);
 			}
 		}
-		
-		return perplexity;
+
+		return likelihood;
 	}
-	
+
+	/*
+	 * Log Likelihood Document Part
+	 * */
+	private double getDocumentLogLikelihood()
+	{
+		double likelihood = 0;
+
+		double alpha_sum = Matrix_Functions_ACM3.Fold_Vec(this.alpha_vec);
+		
+		// For all documents
+		ArrayRealVector one_doc_sum_phi_dvk_dv_E = null;
+		for(Document_LDA_CollapsedVB one_doc : this.documents)
+		{
+			one_doc_sum_phi_dvk_dv_E = one_doc.get_sum_phi_dvk_dv_E();
+			
+			likelihood += -Gamma.logGamma(one_doc.sum_of_sum_phi_dvk_dv_E() + alpha_sum) + Gamma.logGamma(alpha_sum);
+			
+			for(int topic_idx = 0 ; topic_idx < this.TopicNum ; topic_idx++)
+			{
+				likelihood += Gamma.logGamma(one_doc_sum_phi_dvk_dv_E.getEntry(topic_idx) + this.alpha_vec.getEntry(topic_idx)) 
+						- Gamma.logGamma(this.alpha_vec.getEntry(topic_idx));
+			}
+		}
+
+		return likelihood;
+	}
 	
 	/*
 	 * Save result to file
@@ -219,17 +242,5 @@ public class LDA_Collapsed_VB
 			Miscellaneous_function.Print_String_with_Date("Error! in LDA_Collapsed_VB class in ExportResultCSV\n" + ee.toString());
 		}
 		
-	}
-	
-	private double sum_one_double_arr(double[] target_double_arr)
-	{
-		double sum_element = 0;
-		
-		for(int idx = 0; idx < target_double_arr.length ; idx++)
-		{
-			sum_element += target_double_arr[idx];
-		}
-		
-		return sum_element;
 	}
 }
