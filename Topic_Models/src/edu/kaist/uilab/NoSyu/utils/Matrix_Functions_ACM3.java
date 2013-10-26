@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.io.PrintWriter;
+import java.util.List;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
@@ -1022,6 +1023,42 @@ public class Matrix_Functions_ACM3
 		}
 	}
 	
+	/*
+	 * Save matrix to file with ranking
+	 * */
+	public static void saveToFileCSV_Rank_in_row(Array2DRowRealMatrix input_matrix, String file_path, int max_rank, List<String> Vocabulary_list)
+	{
+		try
+		{
+			double[] temp_row_vec = null;
+			int[] sorted_idx = null;
+			int row_dim = input_matrix.getRowDimension();
+			
+			PrintWriter rank_out = new PrintWriter(new FileWriter(new File(file_path)));
+			
+			for(int topic_idx = 0 ; topic_idx < row_dim ; topic_idx++)
+			{
+				temp_row_vec = input_matrix.getRow(topic_idx);
+				sorted_idx = Miscellaneous_function.Sort_Ranking_Double(temp_row_vec, max_rank);
+				
+				StringBuilder builder = new StringBuilder();
+				
+				builder.append(topic_idx);
+				for(int idx = 0 ; idx < max_rank ; idx++)
+				{
+					builder.append("," + Vocabulary_list.get(sorted_idx[idx]));
+				}
+				rank_out.println(builder.toString());
+			}
+
+			rank_out.close();
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+	
 	
 	/*
 	 * 
@@ -1116,6 +1153,25 @@ public class Matrix_Functions_ACM3
 	
 	
 	
+	/*
+	 * Add target_matrix target_row_idx's row vector with target_vec 
+	 * */
+	public static void set_sum_Row_vector(Array2DRowRealMatrix target_matrix, int target_row_idx, final ArrayRealVector target_vec)
+	{
+		int col_dim = target_matrix.getColumnDimension();
+
+		target_matrix.walkInRowOrder(new DefaultRealMatrixChangingVisitor()
+		{
+			@Override
+			public double visit(final int row, final int column, final double value) 
+			{
+				return (value + target_vec.getEntry(column));
+			}
+		}
+		, target_row_idx, target_row_idx, 0, col_dim - 1);
+	}
+
+
 //	/*
 //	 * Set row vector to target matrix with row index => Same as insertIntoThis function
 //	 * */
