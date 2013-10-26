@@ -3,7 +3,6 @@ package edu.kaist.uilab.NoSyu.LDA.Gibbs;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -91,7 +90,6 @@ public class LDA_Gibbs
 	public void LDA_Init()
 	{
 		Iterator<Document_LDA_Gibbs> it_doc = this.documents.iterator();
-//		Iterator<Word> it_word;
 		Document_LDA_Gibbs doc_m;
 		Word[] word_mn_list;
 		int new_topic_idx_k;
@@ -101,15 +99,11 @@ public class LDA_Gibbs
 		{
 			doc_m = it_doc.next();
 			
-//			it_word = doc_m.getword_vec().iterator();
 			word_mn_list = doc_m.getword_vec();
 			
 			// All words in a document
-//			while(it_word.hasNext())
 			for(Word word_mn : word_mn_list)
 			{
-//				word_mn = it_word.next();
-				
 				// Sample k ~ Uniform(1/K)
 				new_topic_idx_k = oRandom.nextInt(TopicNum);
 				
@@ -130,7 +124,6 @@ public class LDA_Gibbs
 	public void LDA_Gibbs_Sampling()
 	{
 		Document_LDA_Gibbs doc_m;
-//		Word word_mn;
 		Word[] word_mn_list;
 		int old_topic_idx_k;	// Previous topic index of a word
 		int new_topic_idx_k;	// Sampled new topic index of word
@@ -143,12 +136,9 @@ public class LDA_Gibbs
 			doc_m = this.documents.get(doc_idx);
 
 			// All words in a document
-//			for(int word_idx = 0 ; word_idx < doc_m.get_word_length() ; word_idx++)
 			word_mn_list = doc_m.getword_vec();
 			for(Word word_mn : word_mn_list)
 			{
-//				word_mn = doc_m.getword_vec().get(word_idx);
-
 				word_mn_wordidx = word_mn.GetWordIndex();
 				// for the current assignment of k to a term t for word w_m,n
 				// decrement it
@@ -384,13 +374,6 @@ public class LDA_Gibbs
 			this.M_TW.writeMatrixToCSVFile("C_WT_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv", this.Vocabulary);
 			this.M_TW.transpose().writeRankingFile("C_WT_R_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv", this.Vocabulary, this.ranking_num);
 			
-//			List<String> Document_name = new ArrayList<String>();
-//			for(int doc_idx = 0 ; doc_idx < this.DocNum ; doc_idx++)
-//			{
-//				Document_name.add(this.documents.get(doc_idx).get_filename());
-//			}
-//			this.M_DT.writeRankingFile("C_DT_R_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv", Document_name, this.ranking_num);
-			
 			// alpha_beta
 			PrintWriter out = new PrintWriter(new FileWriter(new File("Alpha_Beta_" + version + "_" + this.TopicNum + "_" + this.iteration_num + ".csv")));
 			out.print(this.alpha_vec[0]);
@@ -407,40 +390,4 @@ public class LDA_Gibbs
 			Miscellaneous_function.Print_String_with_Date("Error! in LDA_Gibbs class in ExportResultCSV\n" + ee.toString());
 		}
 	}
-	
-	/*
-	public void ExportResultCSV(String version, int iter)
-	{
-		Date date = new Date();
-		
-		try
-		{
-			this.M_DT.writeMatrixToCSVFile("C_DT_" + version + "_" + this.TopicNum + "__" + iter + ".csv");
-			this.M_TW.writeMatrixToCSVFile("C_WT_" + version + "_" + this.TopicNum + "__" + iter + ".csv", this.Vocabulary);
-			this.M_TW.transpose().writeRankingFile("C_WT_R_" + version + "_" + this.TopicNum + "__" + iter + ".csv", this.Vocabulary, this.ranking_num);
-			
-			List<String> Document_name = new ArrayList<String>();
-			for(int doc_idx = 0 ; doc_idx < this.DocNum ; doc_idx++)
-			{
-				Document_name.add(this.documents.get(doc_idx).get_filename());
-			}
-			this.M_DT.writeRankingFile("C_DT_R_" + version + "_" + this.TopicNum + "__" + iter + ".csv", Document_name, this.ranking_num);
-			
-			// alpha_beta
-			PrintWriter out = new PrintWriter(new FileWriter(new File("Alpha_Beta_" + version + "_" + this.TopicNum + "__" + iter + ".csv")));
-			out.print(this.alpha_vec[0]);
-			for(int alpha_idx = 1; alpha_idx < this.TopicNum ; alpha_idx++)
-			{
-				out.print("," + this.alpha_vec[alpha_idx]);
-			}
-			out.println();
-			out.print(this.beta);
-			out.close();
-		}
-		catch(Exception ee)
-		{
-			Miscellaneous_function.Print_String_with_Date("Error! in LDA_Gibbs class in ExportResultCSV\n" + ee.toString());
-		}
-	}
-	*/
 }
