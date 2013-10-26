@@ -28,16 +28,8 @@ public class Document_LDA_Online extends Document
 	 * */
 	public void Start_this_document(int TopicNum)
 	{
-		int target_filename = Integer.parseInt(this.filename) - 1;
-		if(target_filename < 128)
-		{
-			this.gamma_sk = Matrix_Functions_ACM3.load_vector_txt("init_gammad_" + target_filename + ".txt");
-		}
-		else
-		{
-			this.gamma_sk = new ArrayRealVector(TopicNum);
-			Matrix_Functions_ACM3.SetGammaDistribution(this.gamma_sk, 100.0, 0.01);
-		}
+		this.gamma_sk = new ArrayRealVector(TopicNum);
+		Matrix_Functions_ACM3.SetGammaDistribution(this.gamma_sk, 100.0, 0.01);
 	}
 	
 	/*
