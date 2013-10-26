@@ -25,3 +25,4 @@ Example of arguments for each examples
 * AD_LDA_Gibbs_Example - 8 100 2000 ./ap_news/vocab.txt ./ap_news/ap.dat ap_news_ADLDA
 * Online_LDA_Example - 100 100 64 ./ap_news/vocab.txt ./ap_news/ap.dat ap_news_oLDA
 * Distributed_Online_LDA_Example - 100 128 100 ./ap_news/vocab.txt ./ap_news/ap.dat DoLDA_ap_news /user/NoSyu/Distributed_Online_LDA 2 2
+* LDA_Collapsed_VB_Example - 100 2000 ./ap_news/vocab.txt ./ap_news/ap.dat ap_news_CVBLDA
