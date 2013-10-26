@@ -1,4 +1,4 @@
-package edu.kaist.uilab.NoSyu.LDA.Online;
+package edu.kaist.uilab.NoSyu.examples;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -6,6 +6,8 @@ import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Date;
 
+import edu.kaist.uilab.NoSyu.LDA.Online.Document_LDA_Online;
+import edu.kaist.uilab.NoSyu.LDA.Online.Online_LDA;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
 
 public class Online_LDA_Example 
