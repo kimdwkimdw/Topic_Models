@@ -24,7 +24,6 @@ import org.apache.hadoop.mapred.Reporter;
 
 import com.google.gson.Gson;
 
-import edu.kaist.uilab.NoSyu.LDA.Online.Document_LDA_Online;
 import edu.kaist.uilab.NoSyu.utils.Matrix_Functions_ACM3;
 
 public class LDA_DOnline_Mapper 
