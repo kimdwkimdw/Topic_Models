@@ -1,4 +1,4 @@
-package edu.kaist.uilab.NoSyu.LDA.CollapsedVB;
+package edu.kaist.uilab.NoSyu.examples;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -9,6 +9,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Random;
 
+import edu.kaist.uilab.NoSyu.LDA.CollapsedVB.Document_LDA_CollapsedVB;
+import edu.kaist.uilab.NoSyu.LDA.CollapsedVB.LDA_Collapsed_VB;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
 
 
@@ -19,7 +21,6 @@ public class LDA_Collapsed_VB_Example
 	private static String BOW_file_path = null;
 	private static String output_file_path = null;
 	private static int numSampling = 2000;
-	private static String Test_BOW_file_path = null;
 	
 	/**
 	 * @param args
@@ -33,20 +34,11 @@ public class LDA_Collapsed_VB_Example
 			voca_file_path = new String(args[2]);
 			BOW_file_path = new String(args[3]);
 			output_file_path = new String(args[4]);
-			Test_BOW_file_path = new String(args[5]);
 		}
 		catch(java.lang.Throwable t)
 		{
-			if(5 == args.length)
-			{
-				System.out.println("If Test_BOW_file_path is not initialized, then test documents are picked up 10% in BOW_file_path randomly");
-			}
-			else
-			{
-				System.out.println("Usage: numTopic numSampling voca_file_path BOW_file_path output_file_path Test_BOW_file_path");
-				System.out.println("If Test_BOW_file_path is not initialized, then test documents are picked up 10% in BOW_file_path randomly");
-				System.exit(1);
-			}
+			System.out.println("Usage: numTopic numSampling voca_file_path BOW_file_path output_file_path");
+			System.exit(1);
 		}
 		
 		SimpleCVBTest();
@@ -59,27 +51,13 @@ public class LDA_Collapsed_VB_Example
 	{
 		List<String> wordList = Miscellaneous_function.makeStringListFromFile(voca_file_path);
 		ArrayList<Document_LDA_CollapsedVB> documents = null;
-		ArrayList<Document_LDA_CollapsedVB> test_documents = null;
-		
-		if(null == Test_BOW_file_path)
-		{
-			// Pick test documents in BOW_file_path
-//			Random rand = new Random(1);
-//			test_documents = new ArrayList<Document_LDA_CollapsedVB>();
-//			documents = generateDocumentListForLDAforTest(test_documents, 0.1, rand);
-			documents = generateDocumentListForLDA(BOW_file_path);
-		}
-		else
-		{
-			documents = generateDocumentListForLDA(BOW_file_path);
-			test_documents = generateDocumentListForLDA(Test_BOW_file_path);
-		}
+		documents = generateDocumentListForLDA(BOW_file_path);
 		System.out.println("Finish making documents list");
 		
 		Miscellaneous_function.Open_Target_File("Print_String_with_Date_LDA_CollapsedVB.txt");
 		
 		long lStartTime = new Date().getTime(); //start time
-		LDA_Collapsed_VB LDACoVI = new LDA_Collapsed_VB(numTopic, wordList, documents, test_documents);
+		LDA_Collapsed_VB LDACoVI = new LDA_Collapsed_VB(numTopic, wordList, documents, null);
 		System.out.println("LDA_Collapsed_VB Starts!");
 		LDACoVI.run(numSampling, voca_file_path);
 		LDACoVI.ExportResultCSV(output_file_path);
@@ -105,34 +83,6 @@ public class LDA_Collapsed_VB_Example
 			Document_LDA_CollapsedVB doc = new Document_LDA_CollapsedVB(numTopic, line);
 			
 			documents.add(doc);
-		}
-		in.close();
-		
-		return documents;
-	}
-	
-	private static ArrayList<Document_LDA_CollapsedVB> generateDocumentListForLDAforTest(ArrayList<Document_LDA_CollapsedVB> test_documents, double test_prop, Random rand) throws IOException 
-	{
-		ArrayList<Document_LDA_CollapsedVB> documents = new ArrayList<Document_LDA_CollapsedVB>();
-		
-		BufferedReader in = new BufferedReader(new FileReader(new File(BOW_file_path)));
-		String line = null;
-		
-		while((line=in.readLine()) != null)
-		{
-			Document_LDA_CollapsedVB doc = new Document_LDA_CollapsedVB(numTopic, line);
-			
-			if(rand.nextDouble() < test_prop)
-			{
-				// Test
-				test_documents.add(doc);
-			}
-			else
-			{
-				// train
-				documents.add(doc);
-			}
-			
 		}
 		in.close();
 		
