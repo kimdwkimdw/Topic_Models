@@ -1,5 +1,6 @@
 package edu.kaist.uilab.NoSyu.utils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
@@ -12,6 +13,7 @@ public class Document
 	protected String filename;		// file name
 	protected HashMap<Integer, Integer> number_dv;	// n_{document, vocabulary}. key: vocabulary index, value: frequency
 	protected HashMap<Integer, Integer> voca_idx_to_real_voca_idx;	// matrix index to real voca index
+//	protected ArrayList<Integer> voca_idx_to_real_voca_idx;	// matrix index to real voca index
 	
 	/*
 	 * Constructor
@@ -23,6 +25,7 @@ public class Document
 		// Initialize values
 		this.number_dv = new HashMap<Integer, Integer>();
 		this.voca_idx_to_real_voca_idx = new HashMap<Integer, Integer>();
+//		this.voca_idx_to_real_voca_idx = new ArrayList<Integer>();
 		
 		// Load bag of words
 		this.updateWords(BOW_format);
@@ -47,6 +50,7 @@ public class Document
 			this.number_dv.put(wordNo, freq);
 			this.voca_idx_to_real_voca_idx.put(matrix_idx, wordNo);
 			matrix_idx++;
+//			this.voca_idx_to_real_voca_idx.add(wordNo);
 		}
 	}
 	
@@ -82,6 +86,7 @@ public class Document
 	}
 	
 	public HashMap<Integer, Integer> get_voca_idx_to_real_voca_idx()
+//	public ArrayList<Integer> get_voca_idx_to_real_voca_idx()
 	{
 		return this.voca_idx_to_real_voca_idx;
 	}

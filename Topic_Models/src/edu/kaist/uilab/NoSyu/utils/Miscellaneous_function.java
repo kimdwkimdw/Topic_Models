@@ -1,11 +1,14 @@
 package edu.kaist.uilab.NoSyu.utils;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Date;
@@ -150,5 +153,39 @@ final public class Miscellaneous_function
 		}
 		
 		return sorted_index;
+	}
+	
+	
+	/*
+	 * Count lines in a file
+	 * http://stackoverflow.com/questions/453018/number-of-lines-in-a-file-in-java
+	 * */
+	public static int file_line_count(String filename) throws IOException 
+	{
+		InputStream is = new BufferedInputStream(new FileInputStream(filename));
+
+		try 
+		{
+			byte[] c = new byte[1024];
+			int count = 0;
+			int readChars = 0;
+			boolean empty = true;
+			while ((readChars = is.read(c)) != -1) 
+			{
+				empty = false;
+				for (int i = 0; i < readChars; ++i) 
+				{
+					if (c[i] == '\n') 
+					{
+						++count;
+					}
+				}
+			}
+			return (count == 0 && !empty) ? 1 : count;
+		}
+		finally 
+		{
+			is.close();
+		}
 	}
 }
