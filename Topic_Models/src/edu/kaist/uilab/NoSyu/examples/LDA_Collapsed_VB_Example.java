@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 
 import edu.kaist.uilab.NoSyu.LDA.CollapsedVB.Document_LDA_CollapsedVB;
 import edu.kaist.uilab.NoSyu.LDA.CollapsedVB.LDA_Collapsed_VB;

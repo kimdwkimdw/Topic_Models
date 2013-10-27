@@ -1,4 +1,4 @@
-package edu.kaist.uilab.NoSyu.LDA.CollapsedVBOnline;
+package edu.kaist.uilab.NoSyu.examples;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -6,6 +6,8 @@ import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Date;
 
+import edu.kaist.uilab.NoSyu.LDA.CollapsedVBOnline.Document_LDA_CollapsedVBOnline;
+import edu.kaist.uilab.NoSyu.LDA.CollapsedVBOnline.LDA_Collapsed_VB_Online;
 import edu.kaist.uilab.NoSyu.utils.Miscellaneous_function;
 
 public class Collapsed_VB_Online_LDA_Example 
