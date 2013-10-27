@@ -143,7 +143,7 @@ public class DOCLDA_Mapper
 				FileStatus[] file_lists = fileSystem.listStatus(target_dir_path, new Path_filters.sum_phi_dvk_d_E_Filter());
 				String line = null;
 				String[] line_arr = null;
-				double[] row_vec = null;
+				double[] col_vec = null;
 				
 				for(FileStatus one_file_s : file_lists)
 				{
@@ -155,9 +155,9 @@ public class DOCLDA_Mapper
 					{
 						line_arr = line.split("\t");
 						
-						row_vec = gson.fromJson(line_arr[1], double[].class);
+						col_vec = gson.fromJson(line_arr[1], double[].class);
 						
-						sum_phi_dvk_d_E.setRow(Integer.parseInt(line_arr[0]), row_vec);
+						sum_phi_dvk_d_E.setColumn(Integer.parseInt(line_arr[0]), col_vec);
 					}
 					
 					fis.close();

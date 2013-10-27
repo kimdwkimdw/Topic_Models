@@ -184,7 +184,7 @@ public class DOCLDA_Driver
 			}
 			
 			String init_sum_phi_dvk_d_E_path_str = output_directory_path_str + "/0/sum_phi_dvk_d_E";
-			Put_Data_to_HDFS_split(init_sum_phi_dvk_d_E_path_str, sum_phi_dvk_d_E);
+			Put_Data_to_HDFS_split_by_col(init_sum_phi_dvk_d_E_path_str, sum_phi_dvk_d_E);
 			
 			String init_sum_phi_dvk_dv_E_path_str = output_directory_path_str + "/0/sum_phi_dvk_dv_E";
 			Put_Data_to_HDFS_split(init_sum_phi_dvk_dv_E_path_str, sum_phi_dvk_dv_E);
@@ -312,6 +312,40 @@ public class DOCLDA_Driver
 			for(int row_idx = 0 ; row_idx < numRows ; row_idx++)
 			{
 				target_file_hdfs_out.println(row_idx + "\t" + gson.toJson(target_matrix.getRow(row_idx)));
+			}
+			
+			target_file_hdfs_out.close();
+			hdfs_out.close();
+			fileSystem.close();
+		}
+		catch(java.lang.Throwable t)
+		{
+			System.err.println("Error in Put_Data_to_HDFS function in DOCLDA_Driver class");
+			t.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	
+	/*
+	 * Put data to HDFS
+	 * */
+	private static void Put_Data_to_HDFS_split_by_col(String target_path_str, Array2DRowRealMatrix target_matrix)
+	{
+		Path target_path = new Path(target_path_str);
+		
+		try
+		{
+			FileSystem fileSystem = FileSystem.get(conf);
+			
+			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
+			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+			
+			int numCols = target_matrix.getColumnDimension();
+			
+			for(int col_idx = 0 ; col_idx < numCols ; col_idx++)
+			{
+				target_file_hdfs_out.println(col_idx + "\t" + gson.toJson(target_matrix.getColumn(col_idx)));
 			}
 			
 			target_file_hdfs_out.close();
@@ -470,29 +504,29 @@ public class DOCLDA_Driver
 		try
 		{
 			sum_phi_dvk_d_E = new Array2DRowRealMatrix(VocaNum, TopicNum);
-
+			
 			FileSystem fileSystem = FileSystem.get(conf);
 			Path target_dir_path = new Path(FileSystem.getDefaultUri(conf) + sum_phi_dvk_d_E_path_str);
 			FileStatus[] file_lists = fileSystem.listStatus(target_dir_path, new Path_filters.sum_phi_dvk_d_E_Filter());
 			String line = null;
 			String[] line_arr = null;
-			double[] row_vec = null;
-
+			double[] col_vec = null;
+			
 			for(FileStatus one_file_s : file_lists)
 			{
 				Path target_path = one_file_s.getPath();
 				FSDataInputStream fs = fileSystem.open(target_path);
 				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-
+				
 				while ((line = fis.readLine()) != null) 
 				{
 					line_arr = line.split("\t");
-
-					row_vec = gson.fromJson(line_arr[1], double[].class);
-
-					sum_phi_dvk_d_E.setRow(Integer.parseInt(line_arr[0]), row_vec);
+					
+					col_vec = gson.fromJson(line_arr[1], double[].class);
+					
+					sum_phi_dvk_d_E.setColumn(Integer.parseInt(line_arr[0]), col_vec);
 				}
-
+				
 				fis.close();
 				fs.close();
 			}
@@ -517,6 +551,7 @@ public class DOCLDA_Driver
 			String line = null;
 			for(int idx = 0 ; idx < 100 ; idx++)
 			{
+				line = in.readLine();
 				words_freq_corpus += Document_LDA_CollapsedVBOnline.get_total_word_freq(line);
 			}
 			in.close();
