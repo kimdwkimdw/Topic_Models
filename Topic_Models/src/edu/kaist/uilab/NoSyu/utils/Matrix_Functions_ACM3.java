@@ -502,6 +502,38 @@ public class Matrix_Functions_ACM3
 	
 	
 	/*
+	 * 
+	 * */
+	private static class Vec_Normalization_visitor implements RealVectorChangingVisitor
+	{
+		private double norm_value;
+		
+		Vec_Normalization_visitor(double norm_value_para)
+		{
+			norm_value = norm_value_para;
+		}
+		
+		@Override
+		public double end() 
+		{
+			return 0;
+		}
+
+		@Override
+		public void start(int dimension, int start, int end)  
+		{
+			
+		}
+
+		@Override
+		public double visit(int index, double value) 
+		{
+			return value / norm_value;
+		}
+	}
+	
+	
+	/*
 	 * Fold a matrix by row
 	 * ex)
 	 * input matrix 2x3 => output matrix 1x3 where each element is sum of column vector
@@ -808,6 +840,17 @@ public class Matrix_Functions_ACM3
 	}
 	
 	/*
+	 * Vector normalize 
+	 * */
+	public static void Vec_Normalization(ArrayRealVector input_vector)
+	{
+		double norm_value = Fold_Vec(input_vector) + 1e-100;
+		
+		input_vector.walkInDefaultOrder(new Matrix_Functions_ACM3.Vec_Normalization_visitor(norm_value));
+	}
+	
+	
+	/*
 	 * Vector normalize with log
 	 * 
 	 * input_vector
@@ -1013,7 +1056,13 @@ public class Matrix_Functions_ACM3
 		{
 			PrintWriter out_writer = new PrintWriter(new FileWriter(new File(file_path)));
 			
-			out_writer.println(input_matrix.toString());
+//			out_writer.println(input_matrix.toString());
+			int row_dim = input_matrix.getRowDimension();
+			
+			for(int row_idx = 0 ; row_idx < row_dim ; row_idx++)
+			{
+				out_writer.println(input_matrix.getRowVector(row_idx).toString());
+			}
 			
 			out_writer.close();
 		}
