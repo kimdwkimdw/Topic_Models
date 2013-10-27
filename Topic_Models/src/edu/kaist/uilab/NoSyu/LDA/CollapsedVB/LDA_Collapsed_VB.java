@@ -25,7 +25,6 @@ public class LDA_Collapsed_VB
 	private ArrayRealVector sum_phi_dvk_dv_E;				// phi_dvk folding by d and v
 	
 	private List<Document_LDA_CollapsedVB> documents;	// Document list 
-	private List<Document_LDA_CollapsedVB> test_documents;	// Test documents for computing perplexity
 	
 	private List<String> Vocabulary;	// vocabulary
 	private int ranking_num;
@@ -34,13 +33,12 @@ public class LDA_Collapsed_VB
 	/*
 	 * Constructor
 	 * */
-	public LDA_Collapsed_VB(int topicnum, List<String> Vocabulary, List<Document_LDA_CollapsedVB> documents, List<Document_LDA_CollapsedVB> test_documents) throws Exception
+	public LDA_Collapsed_VB(int topicnum, List<String> Vocabulary, List<Document_LDA_CollapsedVB> documents) throws Exception
 	{
 		// 각각에 할당하기
 		this.TopicNum = topicnum;
 		this.WordNum = Vocabulary.size();
 		this.documents = documents;
-		this.test_documents = test_documents;
 		this.Vocabulary = Vocabulary;
 		
 		this.Compute_sum_phi_dvk_s();
