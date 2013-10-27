@@ -26,3 +26,5 @@ Example of arguments for each examples
 * Online_LDA_Example - 100 100 64 ./ap_news/vocab.txt ./ap_news/ap.dat ap_news_oLDA
 * Distributed_Online_LDA_Example - 100 128 100 ./ap_news/vocab.txt ./ap_news/ap.dat DoLDA_ap_news /user/NoSyu/Distributed_Online_LDA 2 2
 * LDA_Collapsed_VB_Example - 100 2000 ./ap_news/vocab.txt ./ap_news/ap.dat ap_news_CVBLDA
+* Collapsed_VB_Online_LDA_Example - 100 500 64 ./ap_news/vocab.txt ./ap_news/ap.dat ap_news_SCVBLDA
+* Distributed_Online_CollapsedVB_LDA_Example - 100 128 100 ./ap_news/vocab.txt ./ap_news/ap.dat DoLDA_ap_news /user/NoSyu/DOC_LDA 2 2
