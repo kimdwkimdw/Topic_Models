@@ -17,10 +17,7 @@ public class Document_LDA_CollapsedVB
 {
 	private String filename;		// file name
 	public HashMap<Integer, ArrayRealVector> phi_dvk;	// phi_dvk
-//	public double[] sum_phi_dvk_dv_E;	// for 1
 	private ArrayRealVector sum_phi_dvk_dv_E;
-//	private HashMap<Integer, Integer> number_dv;	// n_{document, vocabulary}. key: vocabulary index, value: frequency
-	
 	
 	/*
 	 * Constructor
@@ -28,16 +25,12 @@ public class Document_LDA_CollapsedVB
 	public Document_LDA_CollapsedVB(int topic_size, String BOW_format)
 	{
 		this.phi_dvk = new HashMap<Integer, ArrayRealVector>();
-//		this.number_dv = new HashMap<Integer, Integer>();
-//		this.sum_phi_dvk_dv_E = new double[topic_size];
-//		this.sum_phi_dvk_dv_E = new ArrayRealVector(topic_size);
-//		this.sum_phi_dvk_dv_Var = new double[topic_size];
 		this.updateWords(BOW_format, topic_size);
 		this.compute_sum_phi_dvk_dv_E_Var(topic_size);
 	}
 	
 	/*
-	 * Bag of words format으로 받아서 이를 words에 집어 넣음
+	 * Get BOW format and parse it
 	 * */
 	public void updateWords(String BOW_format, int topic_size)
 	{
@@ -117,8 +110,6 @@ public class Document_LDA_CollapsedVB
 		}
 		
 		this.sum_phi_dvk_dv_E = new ArrayRealVector(temp_sums);
-//		System.arraycopy(temp_sums, 0, this.sum_phi_dvk_dv_E, 0, topic_size);
-//		System.arraycopy(temp_sums_var, 0, this.sum_phi_dvk_dv_Var, 0, topic_size);
 	}
 	
 	/*
@@ -139,17 +130,4 @@ public class Document_LDA_CollapsedVB
 	{
 		return Matrix_Functions_ACM3.Fold_Vec(this.sum_phi_dvk_dv_E);
 	}
-	
-	
-//	/*
-//	 * Write theta for this document
-//	 * */
-//	public String writeRankingFile(int max_rank) throws Exception
-//	{
-//		int[] sorted_idx = DoubleMatrix.Sort_Ranking_Double(this.sum_phi_dvk_dv_E, max_rank);
-//		for(int idx = 0 ; idx < max_rank ; idx++)
-//		{
-//			out.print("," + label_list.get(sorted_idx[idx]));
-//		}
-//	}
 }

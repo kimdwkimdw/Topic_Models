@@ -59,7 +59,6 @@ public class LDA_Collapsed_VB
 		{
 			this.LDA_Collapsed_VB_Run();
 			
-//			Miscellaneous_function.Print_String_with_Date("Iter = " + idx + "\tPerplexity = " + this.getPerplexity());
 			Miscellaneous_function.Print_String_with_Date("Iter = " + idx + "\tLogLikelihood = " + this.getLogLikelihood());
 		}
 	}
