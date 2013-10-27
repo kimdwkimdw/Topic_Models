@@ -57,7 +57,7 @@ public class LDA_Collapsed_VB_Example
 		Miscellaneous_function.Open_Target_File("Print_String_with_Date_LDA_CollapsedVB.txt");
 		
 		long lStartTime = new Date().getTime(); //start time
-		LDA_Collapsed_VB LDACoVI = new LDA_Collapsed_VB(numTopic, wordList, documents, null);
+		LDA_Collapsed_VB LDACoVI = new LDA_Collapsed_VB(numTopic, wordList, documents);
 		System.out.println("LDA_Collapsed_VB Starts!");
 		LDACoVI.run(numSampling, voca_file_path);
 		LDACoVI.ExportResultCSV(output_file_path);
