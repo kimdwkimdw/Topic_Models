@@ -82,10 +82,52 @@ public class Online_LDA
 		}
 		catch(java.lang.Throwable t)
 		{
-			System.out.println("Usage: TopicNum Max_Iter Minibatch_size voca_file_path BOW_file_path output_file_name");
+			t.printStackTrace();
 			System.exit(1);
 		}
 	}
+	
+	
+	/*
+	 * Constructor for Online_LDA_Example_run_subdocs
+	 * */
+	public Online_LDA(int topicnum, int max_iter, int minibatch_size, ArrayList<String> voca_list, int document_num)
+	{
+		try
+		{
+			this.TopicNum = topicnum;
+			this.Max_Iter = max_iter;
+			this.minibatch_size = minibatch_size;
+			
+			this.Vocabulary_list = voca_list;
+			this.VocaNum = Vocabulary_list.size();
+			this.document_list = null;
+			this.DocumentNum = document_num;
+			
+			update_t = 0;
+			
+			alpha = new ArrayRealVector(TopicNum, 0.01);
+			loggamma_sum_alpha = Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(alpha));
+			
+			Lambda_kv = new Array2DRowRealMatrix(TopicNum, VocaNum);
+			Matrix_Functions_ACM3.SetGammaDistribution(Lambda_kv, 100.0, 0.01);
+			
+			Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
+			
+			topic_index_array = new int[TopicNum];
+			for(int idx = 0 ; idx < TopicNum ; idx++)
+			{
+				topic_index_array[idx] = idx;
+			}
+		}
+		catch(java.lang.Throwable t)
+		{
+			t.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	
 	
 	/*
 	 * Running function
@@ -146,13 +188,33 @@ public class Online_LDA
 		}
 	}
 	
-//	public void main(String[] args) 
-//	{
-//		// Print result
-//		// with Lambda
-//		ExportResultCSV();
-//	}
+	
+	/*
+	 * Running function
+	 * */
+	public void oLDA_run(List<Document_LDA_Online> minibatch_document_list)
+	{
+		// Run oLDA
+		// Start
+		double minibatch_size_this_iter = (double)(minibatch_document_list.size());
+		sum_score = 0;
+		sum_word_count = 0;
 
+		// E step
+		Array2DRowRealMatrix sumed_ss_lambda = E_Step(minibatch_document_list);
+
+		// Print perplexity
+		System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_size_this_iter));
+
+		// M step
+		M_Step(sumed_ss_lambda, minibatch_size_this_iter);
+
+		// Update index variable
+		update_t++;
+	}
+	
+	
+	
 	/*
 	 * Make Documents list
 	 * */
