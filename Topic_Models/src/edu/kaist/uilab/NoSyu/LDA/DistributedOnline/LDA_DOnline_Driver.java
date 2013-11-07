@@ -139,6 +139,7 @@ public class LDA_DOnline_Driver
 			
 			conf = new JobConf(LDA_DOnline_Driver.class);
 			
+			/*
 			// Check Hadoop conf file
 			if(new File("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/core-site.xml").exists())
 			{
@@ -157,7 +158,7 @@ public class LDA_DOnline_Driver
 				// What?!
 				System.err.println("I don't know where Hadoop conf files.");
 				System.exit(1);
-			}
+			}*/
 			
 			// Delete previous output path
 			try
@@ -181,6 +182,7 @@ public class LDA_DOnline_Driver
 		}
 		catch(java.lang.Throwable t)
 		{
+			t.printStackTrace();
 			System.out.println("Usage: TopicNum MinibatchSize Max_Iter voca_file_path BOW_file_path output_file_name hdfs_workspace_path_str numMapper numReducer");
 			System.out.println("Example");
 			System.out.println("100 10 100 ./ap_news/vocab.txt ./ap_news/ap.dat DoLDA_ap_news /user/NoSyu/Distributed_Online_LDA 2 2");

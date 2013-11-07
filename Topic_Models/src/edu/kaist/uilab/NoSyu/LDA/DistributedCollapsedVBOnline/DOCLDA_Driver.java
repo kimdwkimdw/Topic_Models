@@ -148,7 +148,7 @@ public class DOCLDA_Driver
 			documents_directory_path_str = hdfs_workspace_path_str + "/documents";
 			
 			conf = new JobConf(DOCLDA_Driver.class);
-			
+			/*
 			// Check Hadoop conf file
 			if(new File("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/core-site.xml").exists())
 			{
@@ -167,7 +167,7 @@ public class DOCLDA_Driver
 				// What?!
 				System.err.println("I don't know where Hadoop conf files.");
 				System.exit(1);
-			}
+			}*/
 			
 			// Delete previous output path
 			try
