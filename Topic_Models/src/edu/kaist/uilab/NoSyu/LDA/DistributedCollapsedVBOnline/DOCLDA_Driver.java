@@ -419,7 +419,11 @@ public class DOCLDA_Driver
 		conf.setInputFormat(TextInputFormat.class);
 		conf.setOutputFormat(Reducer_MultipleOutputFormat.class);
 		
-		conf.setCompressMapOutput(true);
+//		conf.setCompressMapOutput(true);
+		conf.set("mapred.compress.map.output", "ture");
+		conf.set("mapred.map.output.compression.codec", "org.apache.hadoop.io.compress.SnappyCodec");
+		conf.set("mapred.output.compress","true");
+		conf.set("mapred.output.compression","org.apache.hadoop.io.compress.SnappyCodec");
 		
 		conf.set("TopicNum", String.valueOf(TopicNum));
 		conf.set("DocumentNum", String.valueOf((double)DocumentNum));
