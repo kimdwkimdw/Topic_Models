@@ -86,9 +86,34 @@ public class LDA_DOnline_Driver
 			Put_Data_to_HDFS(documents_path_str, target_documents);
 			
 			// Set paths
-			output_dir_path_str = output_directory_path_str + "/" + (update_t + 1);
-			lambda_path_str = output_directory_path_str + "/" + update_t;
+//			output_dir_path_str = output_directory_path_str + "/" + (update_t + 1);
+//			lambda_path_str = output_directory_path_str + "/" + update_t;
 			
+			if(0 == update_t % 2)
+			{
+				output_dir_path_str = output_directory_path_str + "/even";
+				lambda_path_str = output_directory_path_str + "/odd";
+			}
+			else
+			{
+				output_dir_path_str = output_directory_path_str + "/odd";
+				lambda_path_str = output_directory_path_str + "/even";
+			}
+			
+			// Delete previous output path
+			try
+			{
+				FileSystem fileSystem = FileSystem.get(conf);
+				fileSystem.delete(new Path(output_dir_path_str), true);
+				fileSystem.close();
+			}
+			catch(java.lang.Throwable t)
+			{
+				System.err.println("Error in Deleting previous output path in LDA_DOnline_Driver class");
+				t.printStackTrace();
+				System.exit(1);
+			}
+						
 			// Run MapReduce
 			Run_MapReduce_job(documents_path_str, output_dir_path_str, lambda_path_str, update_t, target_documents.size());
 		}
@@ -97,7 +122,7 @@ public class LDA_DOnline_Driver
 		
 		// Print result
 		// with Lambda
-		Load_Lambda_kv(lambda_path_str);
+		Load_Lambda_kv(output_dir_path_str);
 		ExportResultCSV();
 	}
 
@@ -173,7 +198,7 @@ public class LDA_DOnline_Driver
 				System.exit(1);
 			}
 			
-			String init_lambda_path_str = output_directory_path_str + "/0/lambda";
+			String init_lambda_path_str = output_directory_path_str + "/odd/lambda";
 			Put_Data_to_HDFS_split(init_lambda_path_str, Lambda_kv);
 			
 			alpha_path_str = hdfs_workspace_path_str + "/parameters/alpha";

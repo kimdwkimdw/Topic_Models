@@ -60,8 +60,13 @@ public class LDA_DOnline_Reducer
 		
 		private Gson gson;
 		private Type IntegerDoubleMap;
-		
+
 		private Array2DRowRealMatrix Lambda_kv;				// lambda
+		
+		private static enum MATCH_COUNTER 
+		{
+			PERPLEXITY
+		};
 		
 //		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
 		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException
@@ -84,7 +89,9 @@ public class LDA_DOnline_Reducer
 				
 				double perplexity_value = Compute_perplexity(sum_sum_score, sum_sum_word_count);
 				
-				output.collect(new Text("perp"), new Text(key_int + "\t" + perplexity_value));
+				reporter.incrCounter(MATCH_COUNTER.PERPLEXITY, (long) (perplexity_value));
+				
+//				output.collect(new Text("perp"), new Text(key_int + "\t" + perplexity_value));
 			}
 			else if(key_int >= 0)
 			{
