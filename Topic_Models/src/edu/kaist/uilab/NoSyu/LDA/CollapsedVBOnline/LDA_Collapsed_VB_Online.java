@@ -1,8 +1,6 @@
 package edu.kaist.uilab.NoSyu.LDA.CollapsedVBOnline;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -28,10 +26,10 @@ public class LDA_Collapsed_VB_Online
 	private int Max_Iter;	// Maximum number of iteration for burn-in pass
 	
 	private ArrayRealVector alpha_vec;	// alpha
-	private double beta;				// beta, symmetric beta
+	private double eta;				// eta, symmetric eta
 	
 	private Array2DRowRealMatrix sum_phi_dvk_d_E;	// phi_dvk folding by d
-	private ArrayRealVector sum_phi_dvk_dv_E;				// phi_dvk folding by d and v
+	private ArrayRealVector sum_phi_dvk_dv_E;		// phi_dvk folding by d and v
 	
 	private double tau0_for_theta = 1000.0;
 	private double kappa_for_theta = 0.9;
@@ -49,6 +47,9 @@ public class LDA_Collapsed_VB_Online
 	private double sum_score;
 	private double sum_word_count;
 	private double third_term_partial;
+	private double loggamma_sum_alpha;
+	private double sum_loggamma_alpha;
+	private double loggamma_sum_alpha_minus_sum_loggamma_alpha;
 	
 	/*
 	 * Constructor 
@@ -68,14 +69,21 @@ public class LDA_Collapsed_VB_Online
 			this.DocumentNum = (double)(this.document_list.size());
 			
 			this.alpha_vec = new ArrayRealVector(TopicNum, 0.01);
-			this.beta = 0.01;
+			this.loggamma_sum_alpha = Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(alpha_vec));
+			this.sum_loggamma_alpha = Matrix_Functions_ACM3.Fold_Vec(Matrix_Functions_ACM3.Do_Gammaln_return(alpha_vec));
+			this.loggamma_sum_alpha_minus_sum_loggamma_alpha = loggamma_sum_alpha - sum_loggamma_alpha;
 			
-			this.third_term_partial = this.VocaNum * this.beta;
+			this.eta = 0.01;
+			
+			this.third_term_partial = this.VocaNum * this.eta;
 			
 			this.sum_phi_dvk_d_E = new Array2DRowRealMatrix(this.VocaNum, this.TopicNum);
 			Matrix_Functions_ACM3.SetGammaDistribution(this.sum_phi_dvk_d_E, 100.0, 0.01);
 			
 			this.sum_phi_dvk_dv_E = Matrix_Functions_ACM3.Fold_Row(this.sum_phi_dvk_d_E);
+			
+			this.sum_score = 0;
+			
 		}
 		catch(java.lang.Throwable t)
 		{
@@ -114,9 +122,8 @@ public class LDA_Collapsed_VB_Online
 			sumed_ss_phi_matrix = LDA_Collapsed_VB_Run_with_docs(minibatch_document_list);
 
 			// Print perplexity
-//			System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_words_size_this_iter));
-			System.out.println("Run iter: " + update_t);
-
+			System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_document_list.size()));
+			
 			// Update global variables
 			LDA_Collapsed_VB_Run_Update_global(sumed_ss_phi_matrix, update_t, (double)minibatch_words_size_this_iter);
 
@@ -143,9 +150,8 @@ public class LDA_Collapsed_VB_Online
 				sumed_ss_phi_matrix = LDA_Collapsed_VB_Run_with_docs(minibatch_document_list);
 
 				// Print perplexity
-//				System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_words_size_this_iter));
-				System.out.println("Run iter: " + update_t);
-
+				System.out.println("Perplexity:\t" + Compute_perplexity(minibatch_document_list.size()));
+				
 				// Update global variables
 				LDA_Collapsed_VB_Run_Update_global(sumed_ss_phi_matrix, update_t, (double)minibatch_words_size_this_iter);
 				
@@ -219,7 +225,7 @@ public class LDA_Collapsed_VB_Online
 					{
 						// Compute phi_dvk using equation
 						first_term = this.alpha_vec.getEntry(target_topic_idx) + one_doc.get_N_document_theta_value(target_topic_idx);
-						second_term = this.beta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
+						second_term = this.eta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
 						third_term = third_term_partial + this.sum_phi_dvk_dv_E.getEntry(target_topic_idx);
 
 						new_phi_dvk = (first_term * second_term) / third_term;
@@ -243,12 +249,15 @@ public class LDA_Collapsed_VB_Online
 		// Update exactly
 		// For each vocabulary in one_doc
 		HashMap<Integer, ArrayRealVector> ss_phi_matrix = new HashMap<Integer, ArrayRealVector>();
+		int word_count_in_one_doc = 0;
+		double expect_ln_qz = 0;
 		
 		for(Entry<Integer, Integer> one_entry : one_doc.word_freq.entrySet())
 		{
 			// Compute phi_dvk for all k
 			target_voca_idx = one_entry.getKey();
 			target_voca_freq = one_entry.getValue();
+			word_count_in_one_doc += target_voca_freq;
 			ArrayRealVector temp_phi_dvk_for_ss_this_voca = new ArrayRealVector(this.TopicNum);
 			
 			for(int freq_idx = 0; freq_idx < target_voca_freq ; freq_idx++)
@@ -258,7 +267,7 @@ public class LDA_Collapsed_VB_Online
 				{
 					// Compute phi_dvk using equation
 					first_term = this.alpha_vec.getEntry(target_topic_idx) + one_doc.get_N_document_theta_value(target_topic_idx);
-					second_term = this.beta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
+					second_term = this.eta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
 					third_term = third_term_partial + this.sum_phi_dvk_dv_E.getEntry(target_topic_idx);
 
 					new_phi_dvk = (first_term * second_term) / third_term;
@@ -268,6 +277,9 @@ public class LDA_Collapsed_VB_Online
 				// Normalization
 				Matrix_Functions_ACM3.Vec_Normalization(temp_phi_dvk);
 				temp_phi_dvk_for_ss_this_voca = temp_phi_dvk_for_ss_this_voca.add(temp_phi_dvk);
+				
+				// For perplexity
+				expect_ln_qz += Matrix_Functions_ACM3.Fold_vec_ele_mult_ln_ele_return(temp_phi_dvk);
 				
 				// Update rho_t_theta
 				rho_t_theta = compute_rho_t(update_t, s_for_theta, tau0_for_theta, kappa_for_theta);
@@ -281,6 +293,18 @@ public class LDA_Collapsed_VB_Online
 			// Update ss
 			ss_phi_matrix.put(target_voca_idx, temp_phi_dvk_for_ss_this_voca);
 		}
+		
+		
+		// Compute for perplexity
+		ArrayRealVector N_document_theta_vector = one_doc.get_N_document_theta();
+		ArrayRealVector temp_vec = N_document_theta_vector.add(alpha_vec);
+		
+		sum_score += Matrix_Functions_ACM3.Fold_Vec(Matrix_Functions_ACM3.Do_Gammaln_return(temp_vec)) 
+				- Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(temp_vec));
+		
+		sum_score -= expect_ln_qz;
+		
+		sum_word_count += (double) word_count_in_one_doc;
 		
 		return ss_phi_matrix;
 	}
@@ -354,29 +378,27 @@ public class LDA_Collapsed_VB_Online
 	/*
 	 * Compute perplexity
 	 * */
-//	private double Compute_perplexity(double minibatch_size_now)
-//	{
-//		// Compute for perplexity
-//		sum_score *= DocumentNum / minibatch_size_now;
-//		
-//		Array2DRowRealMatrix temp_matrix = (Array2DRowRealMatrix) Lambda_kv.scalarMultiply(-1).scalarAdd(eta);
-//		temp_matrix = Matrix_Functions_ACM3.elementwise_mul_two_matrix(temp_matrix, Expectation_Lambda_kv);
-//		sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
-//		
-//		temp_matrix = Matrix_Functions_ACM3.Do_Gammaln_return(Lambda_kv);
-//		temp_matrix = (Array2DRowRealMatrix) temp_matrix.scalarAdd(-Gamma.logGamma(eta));
-//		sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
-//		
-//		ArrayRealVector temp_vector = Matrix_Functions_ACM3.Fold_Col(Lambda_kv);
-//		temp_vector = Matrix_Functions_ACM3.Do_Gammaln_return(temp_vector);
-//		temp_vector.mapMultiplyToSelf(-1);
-//		temp_vector.mapAddToSelf(Gamma.logGamma(eta * VocaNum));
-//		sum_score += Matrix_Functions_ACM3.Fold_Vec(temp_vector);
-//		
-//		double perwordbound = sum_score * minibatch_size_now / (DocumentNum * sum_word_count);
-//		
-//		return FastMath.exp(-perwordbound);		
-//	}
+	private double Compute_perplexity(double minibatch_size_now)
+	{
+		// Compute for perplexity
+		sum_score *= DocumentNum / minibatch_size_now;
+		
+		sum_score += minibatch_size_now * loggamma_sum_alpha_minus_sum_loggamma_alpha;
+		sum_score += this.TopicNum * (Gamma.logGamma(eta * this.VocaNum) - this.VocaNum * Gamma.logGamma(eta));
+		
+		for(int topic_idx = 0 ; topic_idx < this.TopicNum ; topic_idx++)
+		{
+			ArrayRealVector col_sum_phi_dvk_d_E_vector = (ArrayRealVector) sum_phi_dvk_d_E.getColumnVector(topic_idx);
+			ArrayRealVector temp_vec = (ArrayRealVector) col_sum_phi_dvk_d_E_vector.mapAdd(eta);
+			
+			sum_score += Matrix_Functions_ACM3.Fold_Vec(Matrix_Functions_ACM3.Do_Gammaln_return(temp_vec)) 
+					- Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(temp_vec));
+		}
+
+		double perwordbound = sum_score * minibatch_size_now / (DocumentNum * sum_word_count);
+
+		return FastMath.exp(-perwordbound);		
+	}
 	
 	
 	/*

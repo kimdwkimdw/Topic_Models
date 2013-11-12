@@ -534,6 +534,68 @@ public class Matrix_Functions_ACM3
 	
 	
 	/*
+	 * 
+	 * */
+	private static class Vec_ele_mult_ln_ele_visitor implements RealVectorChangingVisitor
+	{
+		Vec_ele_mult_ln_ele_visitor()
+		{
+			
+		}
+		
+		@Override
+		public double end() 
+		{
+			return 0;
+		}
+
+		@Override
+		public void start(int dimension, int start, int end)  
+		{
+			
+		}
+
+		@Override
+		public double visit(int index, double value) 
+		{
+			return value * FastMath.log(value);
+		}
+	}
+	
+	
+	/*
+	 * 
+	 * */
+	private static class Fold_Vec_ele_mult_ln_ele_visitor implements RealVectorPreservingVisitor
+	{
+		private double sum_ele_value;
+		
+		Fold_Vec_ele_mult_ln_ele_visitor()
+		{
+			sum_ele_value = 0;
+		}
+		
+		@Override
+		public double end() 
+		{
+			return sum_ele_value;
+		}
+
+		@Override
+		public void start(int dimension, int start, int end)  
+		{
+			
+		}
+
+		@Override
+		public void visit(int index, double value) 
+		{
+			sum_ele_value += (value * FastMath.log(value));
+		}
+	}
+	
+	
+	/*
 	 * Fold a matrix by row
 	 * ex)
 	 * input matrix 2x3 => output matrix 1x3 where each element is sum of column vector
@@ -1220,6 +1282,28 @@ public class Matrix_Functions_ACM3
 		, target_row_idx, target_row_idx, 0, col_dim - 1);
 	}
 
+	
+	/*
+	 * Do original value * ln(original value) and return it for input vector
+	 * */
+	public static ArrayRealVector Do_ele_mult_ln_ele_return(ArrayRealVector input_vector)
+	{
+		ArrayRealVector output_vector = input_vector.copy();
+		
+		output_vector.walkInDefaultOrder(new Vec_ele_mult_ln_ele_visitor());
+		
+		return output_vector;
+	}
+	
+	
+	/*
+	 * Do original value * ln(original value) and return sum of element for input vector
+	 * */
+	public static double Fold_vec_ele_mult_ln_ele_return(ArrayRealVector input_vector)
+	{
+		return input_vector.walkInDefaultOrder(new Fold_Vec_ele_mult_ln_ele_visitor());
+	}
+	
 
 //	/*
 //	 * Set row vector to target matrix with row index => Same as insertIntoThis function
