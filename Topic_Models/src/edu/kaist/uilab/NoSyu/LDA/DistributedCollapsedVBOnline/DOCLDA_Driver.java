@@ -44,7 +44,7 @@ public class DOCLDA_Driver
 	private static int Max_Iter;	// Maximum number of iteration for burn-in pass
 	
 	private static ArrayRealVector alpha_vec;	// alpha
-	private static double beta;				// beta, symmetric beta
+	private static double eta;				// eta, symmetric eta
 
 	private static Array2DRowRealMatrix sum_phi_dvk_d_E;	// phi_dvk folding by d
 	private static ArrayRealVector sum_phi_dvk_dv_E;				// phi_dvk folding by d and v
@@ -424,7 +424,7 @@ public class DOCLDA_Driver
 		conf.set("TopicNum", String.valueOf(TopicNum));
 		conf.set("DocumentNum", String.valueOf((double)DocumentNum));
 		conf.set("minibatch_size", String.valueOf((double)minibatch_size));
-		conf.set("beta", String.valueOf(beta));
+		conf.set("eta", String.valueOf(eta));
 		conf.set("alpha_path", alpha_path_str);
 		conf.set("Max_Iter", String.valueOf(Max_Iter));
 		

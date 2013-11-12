@@ -9,6 +9,7 @@ import java.util.Map.Entry;
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -49,7 +50,7 @@ public class DOCLDA_Mapper
 		private int Max_Iter;	// Maximum number of iteration for E_Step
 		
 		private ArrayRealVector alpha_vec;		// Hyper-parameter for theta
-		private double beta;				// beta, symmetric beta
+		private double eta;				// eta, symmetric eta
 		
 		private Array2DRowRealMatrix sum_phi_dvk_d_E;	// phi_dvk folding by d
 		private ArrayRealVector sum_phi_dvk_dv_E;				// phi_dvk folding by d and v
@@ -62,6 +63,8 @@ public class DOCLDA_Mapper
 		
 		private Gson gson;
 		
+		private double sum_score;
+		
 		public void map(LongWritable key, Text value, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
 		{
 			String BOW_format = value.toString();
@@ -73,6 +76,7 @@ public class DOCLDA_Mapper
 			// Output statistic sufficient
 			RealVector row_vector = null;
 			int real_voca_idx = 0;
+			int sum_word_count = one_doc.get_word_freq_in_doc();
 			for(int topic_idx = 0 ; topic_idx < TopicNum; topic_idx++)
 			{
 				HashMap<Integer, Double> col_vector_hashmap = new HashMap<Integer, Double>();	// voca_idx, value
@@ -85,28 +89,30 @@ public class DOCLDA_Mapper
 					col_vector_hashmap.put(real_voca_idx, row_vector.getEntry(topic_idx));
 				}
 				
-				output.collect(new IntWritable(topic_idx), new Text(one_doc.get_word_freq_in_doc() + "\n" + gson.toJson(col_vector_hashmap)));
+				output.collect(new IntWritable(topic_idx), new Text(sum_word_count + "\n" + gson.toJson(col_vector_hashmap)));
 			}
 			
 			// Output gamma
 			
 			// Output data for perplexity
-//			output.collect(new IntWritable(-1), new Text(String.valueOf(sum_score) + "\t" + String.valueOf(sum_word_count)));
+			output.collect(new IntWritable(-1), new Text(String.valueOf(sum_score) + "\t" + String.valueOf(sum_word_count)));
 		}
 
 		public void configure(JobConf job) 
 		{
 			TopicNum = Integer.parseInt(job.get("TopicNum"));
-			beta = Double.parseDouble(job.get("beta"));
+			eta = Double.parseDouble(job.get("eta"));
 			Max_Iter = Integer.parseInt(job.get("Max_Iter"));
 			VocaNum = Integer.parseInt(job.get("VocaNum"));
-			third_term_partial = VocaNum * beta;
+			third_term_partial = VocaNum * eta;
 			
 			tau0_for_theta = Double.parseDouble(job.get("tau0_for_theta"));
 			kappa_for_theta = Double.parseDouble(job.get("kappa_for_theta"));
 			s_for_theta = Double.parseDouble(job.get("s_for_theta"));
 			
 			gson = new Gson();
+			
+			sum_score = 0;
 			
 			String alpha_path_str = job.get("alpha_path");
 			String sum_phi_dvk_d_E_path_str = job.get("sum_phi_dvk_d_E_path");
@@ -242,7 +248,7 @@ public class DOCLDA_Mapper
 						{
 							// Compute phi_dvk using equation
 							first_term = this.alpha_vec.getEntry(target_topic_idx) + one_doc.get_N_document_theta_value(target_topic_idx);
-							second_term = this.beta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
+							second_term = this.eta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
 							third_term = third_term_partial + this.sum_phi_dvk_dv_E.getEntry(target_topic_idx);
 
 							new_phi_dvk = (first_term * second_term) / third_term;
@@ -266,6 +272,7 @@ public class DOCLDA_Mapper
 			// Update exactly
 			// For each vocabulary in one_doc
 			HashMap<Integer, ArrayRealVector> ss_phi_matrix = new HashMap<Integer, ArrayRealVector>();
+			double expect_ln_qz = 0;
 			
 			for(Entry<Integer, Integer> one_entry : one_doc.word_freq.entrySet())
 			{
@@ -281,7 +288,7 @@ public class DOCLDA_Mapper
 					{
 						// Compute phi_dvk using equation
 						first_term = this.alpha_vec.getEntry(target_topic_idx) + one_doc.get_N_document_theta_value(target_topic_idx);
-						second_term = this.beta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
+						second_term = this.eta + this.sum_phi_dvk_d_E.getEntry(target_voca_idx, target_topic_idx);
 						third_term = third_term_partial + this.sum_phi_dvk_dv_E.getEntry(target_topic_idx);
 
 						new_phi_dvk = (first_term * second_term) / third_term;
@@ -291,6 +298,9 @@ public class DOCLDA_Mapper
 					// Normalization
 					Matrix_Functions_ACM3.Vec_Normalization(temp_phi_dvk);
 					temp_phi_dvk_for_ss_this_voca = temp_phi_dvk_for_ss_this_voca.add(temp_phi_dvk);
+					
+					// For perplexity
+					expect_ln_qz += Matrix_Functions_ACM3.Fold_vec_ele_mult_ln_ele_return(temp_phi_dvk);
 					
 					// Update rho_t_theta
 					rho_t_theta = compute_rho_t(update_t, s_for_theta, tau0_for_theta, kappa_for_theta);
@@ -304,6 +314,15 @@ public class DOCLDA_Mapper
 				// Update ss
 				ss_phi_matrix.put(target_voca_idx, temp_phi_dvk_for_ss_this_voca);
 			}
+			
+			// Compute for perplexity
+			ArrayRealVector N_document_theta_vector = one_doc.get_N_document_theta();
+			ArrayRealVector temp_vec = N_document_theta_vector.add(alpha_vec);
+			
+			sum_score += Matrix_Functions_ACM3.Fold_Vec(Matrix_Functions_ACM3.Do_Gammaln_return(temp_vec)) 
+					- Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(temp_vec));
+			
+			sum_score -= expect_ln_qz;
 			
 			return ss_phi_matrix;
 		}

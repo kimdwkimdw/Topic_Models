@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -50,6 +51,11 @@ public class DOCLDA_Reducer
 		private int TopicNum;	// Number of Topic				== K
 		private int VocaNum;	// Size of Dictionary of words	== V
 		private double WordFreqNum;	// Number of all words		== C
+		private double DocumentNum;	// Number of Document
+		private double minibatch_size;	// Minibatch size
+		private double eta;		// Hyper-parameter for beta
+		
+		private ArrayRealVector alpha_vec;		// Hyper-parameter for theta
 		
 		private Array2DRowRealMatrix sum_phi_dvk_d_E;	// phi_dvk folding by d
 		private ArrayRealVector sum_phi_dvk_dv_E;				// phi_dvk folding by d and v
@@ -69,21 +75,21 @@ public class DOCLDA_Reducer
 			
 			if(-1 == key_int)
 			{
-//				// sum_score and sum_word_count
-//				double sum_sum_score = 0;
-//				double sum_sum_word_count = 0;
-//				String[] line_arr = null;
-//				
-//				while(values.hasNext())
-//				{
-//					line_arr = values.next().toString().split("\t");
-//					sum_sum_score += Double.parseDouble(line_arr[0]);
-//					sum_sum_word_count += Double.parseDouble(line_arr[1]);
-//				}
-//				
-//				double perplexity_value = Compute_perplexity(sum_sum_score, sum_sum_word_count);
-//				
-//				output.collect(new Text("perp"), new Text(key_int + "\t" + perplexity_value));
+				// sum_score and sum_word_count
+				double sum_sum_score = 0;
+				int sum_sum_word_count = 0;
+				String[] line_arr = null;
+				
+				while(values.hasNext())
+				{
+					line_arr = values.next().toString().split("\t");
+					sum_sum_score += Double.parseDouble(line_arr[0]);
+					sum_sum_word_count += Integer.parseInt(line_arr[1]);
+				}
+				
+				double perplexity_value = Compute_perplexity(sum_sum_score, sum_sum_word_count);
+				
+				output.collect(new Text("perp"), new Text(key_int + "\t" + perplexity_value));
 			}
 			else if(key_int >= 0)	// key_int is topic index
 			{
@@ -165,9 +171,12 @@ public class DOCLDA_Reducer
 		public void configure(JobConf job) 
 		{
 			TopicNum = Integer.parseInt(job.get("TopicNum"));
+			DocumentNum = Double.parseDouble(job.get("DocumentNum"));
 			WordFreqNum = Double.parseDouble(job.get("WordFreqNum"));
+			minibatch_size = Double.parseDouble(job.get("minibatch_size"));
 			VocaNum = Integer.parseInt(job.get("VocaNum"));
 			update_t_for_global = Integer.parseInt(job.get("update_t_for_global"));
+			eta = Double.parseDouble(job.get("eta"));
 			
 			tau0_for_global = Double.parseDouble(job.get("tau0_for_global"));
 			kappa_for_global = Double.parseDouble(job.get("kappa_for_global"));
@@ -176,9 +185,30 @@ public class DOCLDA_Reducer
 			gson = new Gson();
 			IntegerDoubleMap = new TypeToken<Map<Integer, Double>>(){}.getType();
 			
+			String alpha_path_str = job.get("alpha_path");
 			String sum_phi_dvk_d_E_path_str = job.get("sum_phi_dvk_d_E_path");
 			String sum_phi_dvk_dv_E_path_str = job.get("sum_phi_dvk_dv_E_path");
 			FileSystem fileSystem = null;
+			
+			// alpha load
+			try
+			{
+				fileSystem = FileSystem.get(job);
+				Path alpha_path = new Path(FileSystem.getDefaultUri(job) + alpha_path_str);
+				FSDataInputStream fs = fileSystem.open(alpha_path);
+				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+				
+				alpha_vec = new ArrayRealVector(gson.fromJson(fis, double[].class));
+				
+				fis.close();
+				fs.close();
+			}
+			catch (Throwable t) 
+			{
+				t.printStackTrace();
+				
+				alpha_vec = new ArrayRealVector(TopicNum, 0.01);
+			}
 			
 			// sum_phi_dvk_d_E load
 			try
@@ -257,30 +287,27 @@ public class DOCLDA_Reducer
 		/*
 		 * Compute perplexity
 		 * */
-//		private double Compute_perplexity(double sum_score, double sum_word_count)
-//		{
-//			// Compute for perplexity
-//			sum_score *= DocumentNum / minibatch_size;
-//			
-//			Array2DRowRealMatrix Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
-//			Array2DRowRealMatrix temp_matrix = (Array2DRowRealMatrix) Lambda_kv.scalarMultiply(-1).scalarAdd(eta);
-//			temp_matrix = Matrix_Functions_ACM3.elementwise_mul_two_matrix(temp_matrix, Expectation_Lambda_kv);
-//			sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
-//			
-//			temp_matrix = Matrix_Functions_ACM3.Do_Gammaln_return(Lambda_kv);
-//			temp_matrix = (Array2DRowRealMatrix) temp_matrix.scalarAdd(-Gamma.logGamma(eta));
-//			sum_score += Matrix_Functions_ACM3.Fold_Matrix(temp_matrix);
-//			
-//			ArrayRealVector temp_vector = Matrix_Functions_ACM3.Fold_Col(Lambda_kv);
-//			temp_vector = Matrix_Functions_ACM3.Do_Gammaln_return(temp_vector);
-//			temp_vector.mapMultiplyToSelf(-1);
-//			temp_vector.mapAddToSelf(Gamma.logGamma(eta * VocaNum));
-//			sum_score += Matrix_Functions_ACM3.Fold_Vec(temp_vector);
-//			
-//			double perwordbound = sum_score * minibatch_size / (DocumentNum * sum_word_count);
-//			
-//			return FastMath.exp(-perwordbound);		
-//		}
+		private double Compute_perplexity(double sum_score, double sum_word_count)
+		{
+			// Compute for perplexity
+			sum_score *= DocumentNum / minibatch_size;
+			
+			sum_score += minibatch_size * (Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(alpha_vec)) - Matrix_Functions_ACM3.Fold_Vec(Matrix_Functions_ACM3.Do_Gammaln_return(alpha_vec)));
+			sum_score += this.TopicNum * (Gamma.logGamma(eta * this.VocaNum) - this.VocaNum * Gamma.logGamma(eta));
+			
+			for(int topic_idx = 0 ; topic_idx < this.TopicNum ; topic_idx++)
+			{
+				ArrayRealVector col_sum_phi_dvk_d_E_vector = (ArrayRealVector) sum_phi_dvk_d_E.getColumnVector(topic_idx);
+				ArrayRealVector temp_vec = (ArrayRealVector) col_sum_phi_dvk_d_E_vector.mapAdd(eta);
+				
+				sum_score += Matrix_Functions_ACM3.Fold_Vec(Matrix_Functions_ACM3.Do_Gammaln_return(temp_vec)) 
+						- Gamma.logGamma(Matrix_Functions_ACM3.Fold_Vec(temp_vec));
+			}
+
+			double perwordbound = sum_score * minibatch_size / (DocumentNum * sum_word_count);
+
+			return FastMath.exp(-perwordbound);		
+		}
 		
 		
 		/*
