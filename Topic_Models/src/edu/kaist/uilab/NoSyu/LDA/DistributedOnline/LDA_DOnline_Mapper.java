@@ -1,26 +1,26 @@
 package edu.kaist.uilab.NoSyu.LDA.DistributedOnline;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.HashMap;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.special.Gamma;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.Utils;
+import org.apache.hadoop.util.ReflectionUtils;
 
 import com.google.gson.Gson;
 
@@ -42,7 +42,7 @@ public class LDA_DOnline_Mapper
 	 * key : -1
 	 * value : gamma for the document d
 	 * */
-	public static class LDA_DO_Mapper extends MapReduceBase implements Mapper<LongWritable, Text, IntWritable, Text> 
+	public static class LDA_DO_Mapper extends MapReduceBase implements Mapper<IntWritable, Text, IntWritable, Text> 
 	{
 		private int TopicNum;	// Number of Topic				== K
 		private int VocaNum;	// Size of Dictionary of words	== V
@@ -58,7 +58,7 @@ public class LDA_DOnline_Mapper
 		private static int[] topic_index_array;
 		private static double loggamma_sum_alpha;
 		
-		public void map(LongWritable key, Text value, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
+		public void map(IntWritable key, Text value, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
 		{
 			String BOW_format = value.toString();
 			Document_LDA_Online one_doc = new Document_LDA_Online(BOW_format);
@@ -146,13 +146,26 @@ public class LDA_DOnline_Mapper
 			{
 				fileSystem = FileSystem.get(job);
 				Path alpha_path = new Path(FileSystem.getDefaultUri(job) + alpha_path_str);
-				FSDataInputStream fs = fileSystem.open(alpha_path);
-				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
 				
-				alpha = new ArrayRealVector(gson.fromJson(fis, double[].class));
+				SequenceFile.Reader reader = new SequenceFile.Reader(fileSystem, alpha_path, job);
 				
-				fis.close();
-				fs.close();
+				IntWritable key = (IntWritable) ReflectionUtils.newInstance(reader.getKeyClass(), job);
+				Text value = (Text) ReflectionUtils.newInstance(reader.getValueClass(), job);
+				
+				while (reader.next(key, value)) 
+				{
+					alpha = new ArrayRealVector(gson.fromJson(value.toString(), double[].class));
+				}
+				
+				IOUtils.closeStream(reader);
+				
+//				FSDataInputStream fs = fileSystem.open(alpha_path);
+//				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+//				
+//				alpha = new ArrayRealVector(gson.fromJson(fis, double[].class));
+//				
+//				fis.close();
+//				fs.close();
 			}
 			catch (Throwable t) 
 			{
@@ -169,28 +182,43 @@ public class LDA_DOnline_Mapper
 				
 				fileSystem = FileSystem.get(job);
 				Path lambda_dir_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
-				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
-				String line = null;
-				String[] line_arr = null;
+				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Utils.OutputFileUtils.OutputFilesFilter());
 				double[] row_vec = null;
 				
 				for(FileStatus one_file_s : file_lists)
 				{
 					Path lambda_path = one_file_s.getPath();
-					FSDataInputStream fs = fileSystem.open(lambda_path);
-					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
 					
-					while ((line = fis.readLine()) != null) 
+					SequenceFile.Reader reader = new SequenceFile.Reader(fileSystem, lambda_path, job);
+					
+					IntWritable key = (IntWritable) ReflectionUtils.newInstance(reader.getKeyClass(), job);
+					Text value = (Text) ReflectionUtils.newInstance(reader.getValueClass(), job);
+					
+					while (reader.next(key, value)) 
 					{
-						line_arr = line.split("\t");
+						row_vec = gson.fromJson(value.toString(), double[].class);
 						
-						row_vec = gson.fromJson(line_arr[1], double[].class);
-						
-						Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+						Lambda_kv.setRow(key.get(), row_vec);
 					}
 					
-					fis.close();
-					fs.close();
+					IOUtils.closeStream(reader);
+					
+					
+//					Path lambda_path = one_file_s.getPath();
+//					FSDataInputStream fs = fileSystem.open(lambda_path);
+//					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+//					
+//					while ((line = fis.readLine()) != null) 
+//					{
+//						line_arr = line.split("\t");
+//						
+//						row_vec = gson.fromJson(line_arr[1], double[].class);
+//						
+//						Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+//					}
+//					
+//					fis.close();
+//					fs.close();
 				}
 				
 				Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);

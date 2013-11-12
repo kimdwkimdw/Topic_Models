@@ -1,8 +1,6 @@
 package edu.kaist.uilab.NoSyu.LDA.DistributedOnline;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -13,17 +11,20 @@ import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.Utils;
+import org.apache.hadoop.util.ReflectionUtils;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -47,8 +48,8 @@ public class LDA_DOnline_Reducer
 	 * key : Voca index
 	 * value : lambda_kv where v is key value 
 	 * */
-//	public static class LDA_DO_Reducer extends MapReduceBase implements Reducer<IntWritable, Text, IntWritable, Text>
-	public static class LDA_DO_Reducer extends MapReduceBase implements Reducer<IntWritable, Text, Text, Text>
+	public static class LDA_DO_Reducer extends MapReduceBase implements Reducer<IntWritable, Text, IntWritable, Text>
+//	public static class LDA_DO_Reducer extends MapReduceBase implements Reducer<IntWritable, Text, Text, Text>
 	{
 		private int TopicNum;	// Number of Topic				== K
 		private double DocumentNum;	// Number of Document
@@ -68,8 +69,8 @@ public class LDA_DOnline_Reducer
 			PERPLEXITY
 		};
 		
-//		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
-		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException
+		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException 
+//		public void reduce(IntWritable key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException
 		{
 			int key_int = key.get();
 			
@@ -140,7 +141,8 @@ public class LDA_DOnline_Reducer
 				ArrayRealVector updated_lambda_v = temp_1.add(temp_2);	// 1 x V
 				
 				// Output is Topic index and updated lambda for this topic index
-				output.collect(new Text("lambda"), new Text(key_int + "\t" + gson.toJson(updated_lambda_v.getDataRef())));
+//				output.collect(new Text("lambda"), new Text(key_int + "\t" + gson.toJson(updated_lambda_v.getDataRef())));
+				output.collect(new IntWritable(key_int), new Text(gson.toJson(updated_lambda_v.getDataRef())));
 			}
 			else
 			{
@@ -171,28 +173,43 @@ public class LDA_DOnline_Reducer
 				
 				FileSystem fileSystem = FileSystem.get(job);
 				Path lambda_dir_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
-				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
-				String line = null;
-				String[] line_arr = null;
+				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Utils.OutputFileUtils.OutputFilesFilter());
 				double[] row_vec = null;
 				
 				for(FileStatus one_file_s : file_lists)
 				{
 					Path lambda_path = one_file_s.getPath();
-					FSDataInputStream fs = fileSystem.open(lambda_path);
-					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
 					
-					while ((line = fis.readLine()) != null) 
+					SequenceFile.Reader reader = new SequenceFile.Reader(fileSystem, lambda_path, job);
+					
+					IntWritable key = (IntWritable) ReflectionUtils.newInstance(reader.getKeyClass(), job);
+					Text value = (Text) ReflectionUtils.newInstance(reader.getValueClass(), job);
+					
+					while (reader.next(key, value)) 
 					{
-						line_arr = line.split("\t");
+						row_vec = gson.fromJson(value.toString(), double[].class);
 						
-						row_vec = gson.fromJson(line_arr[1], double[].class);
-						
-						Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+						Lambda_kv.setRow(key.get(), row_vec);
 					}
 					
-					fis.close();
-					fs.close();
+					IOUtils.closeStream(reader);
+					
+					
+//					Path lambda_path = one_file_s.getPath();
+//					FSDataInputStream fs = fileSystem.open(lambda_path);
+//					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+//					
+//					while ((line = fis.readLine()) != null) 
+//					{
+//						line_arr = line.split("\t");
+//						
+//						row_vec = gson.fromJson(line_arr[1], double[].class);
+//						
+//						Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+//					}
+//					
+//					fis.close();
+//					fs.close();
 				}
 			}
 			catch (Throwable t) 

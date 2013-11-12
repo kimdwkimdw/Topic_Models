@@ -5,24 +5,29 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RawLocalFileSystem;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.TextInputFormat;
+import org.apache.hadoop.mapred.SequenceFileInputFormat;
+import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.mapred.Utils;
+import org.apache.hadoop.util.ReflectionUtils;
 
 import com.google.gson.Gson;
 
@@ -74,6 +79,7 @@ public class LDA_DOnline_Driver
 		// Run
 		int update_t = 0;
 		String documents_path_str = documents_directory_path_str + "/mini_documents";
+		String documents_path_str_local = "target_documents";
 		String output_dir_path_str = null;
 		String lambda_path_str = null;
 		for(int done_doc_size = 0 ; done_doc_size < DocumentNum ; done_doc_size += MinibatchSize, update_t++)
@@ -83,7 +89,9 @@ public class LDA_DOnline_Driver
 			ArrayList<String> target_documents = make_document_list(MinibatchSize);
 			
 			// Put it to HDFS
-			Put_Data_to_HDFS(documents_path_str, target_documents);
+//			Put_Data_to_HDFS(documents_path_str, target_documents);
+			writeToSequenceFile_Local(documents_path_str_local, target_documents);
+			copySequenceFile(documents_path_str_local, documents_path_str);
 			
 			// Set paths
 //			output_dir_path_str = output_directory_path_str + "/" + (update_t + 1);
@@ -122,7 +130,8 @@ public class LDA_DOnline_Driver
 		
 		// Print result
 		// with Lambda
-		Load_Lambda_kv(output_dir_path_str);
+//		Load_Lambda_kv(output_dir_path_str);
+		Load_Lambda_kv_Sequencefile(output_dir_path_str);
 		ExportResultCSV();
 	}
 
@@ -199,10 +208,14 @@ public class LDA_DOnline_Driver
 			}
 			
 			String init_lambda_path_str = output_directory_path_str + "/odd/lambda";
-			Put_Data_to_HDFS_split(init_lambda_path_str, Lambda_kv);
+//			Put_Data_to_HDFS_split(init_lambda_path_str, Lambda_kv);
+			writeToSequenceFile_Local("Lambda_kv", Lambda_kv);
+			copySequenceFile("Lambda_kv", init_lambda_path_str);
 			
 			alpha_path_str = hdfs_workspace_path_str + "/parameters/alpha";
-			Put_Data_to_HDFS(alpha_path_str, alpha);
+//			Put_Data_to_HDFS(alpha_path_str, alpha);
+			writeToSequenceFile_Local("alpha", alpha);
+			copySequenceFile("alpha", alpha_path_str);
 		}
 		catch(java.lang.Throwable t)
 		{
@@ -245,60 +258,66 @@ public class LDA_DOnline_Driver
 	}
 	
 	
-	
 	/*
-	 * Put data to HDFS
+	 * Copy sequence file from local to hdfs
+	 * http://noushinb.blogspot.kr/2013/04/reading-writing-hadoop-sequence-files.html
 	 * */
-	private static void Put_Data_to_HDFS(String target_path_str, ArrayList<String> target_documents)
+	private static void copySequenceFile(String from_local, String to_hdfs) 
 	{
-		Path target_path = new Path(target_path_str);
-		
 		try
 		{
 			FileSystem fileSystem = FileSystem.get(conf);
-			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
-			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+			Path localPath = new Path(from_local);
+			Path hdfsPath = new Path(to_hdfs);
+			boolean deleteSource = true;
 
+			fileSystem.copyFromLocalFile(deleteSource, localPath, hdfsPath);
+		}
+		catch(java.lang.Throwable t)
+		{
+			System.err.println("Error in copySequenceFile function in LDA_DOnline_Driver class");
+			t.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	
+	/*
+	 * Write sequence file to local
+	 * http://noushinb.blogspot.kr/2013/04/reading-writing-hadoop-sequence-files.html
+	 * http://programmer-land.blogspot.kr/2009/04/hadoop-sequence-files.html
+	 * */
+	private static void writeToSequenceFile_Local(String sequenceFileName, ArrayList<String> target_documents)
+	{
+		try
+		{
+			IntWritable key = null;
+			Text value = null;
+			Configuration conf_local = new Configuration();
+			conf_local.set("fs.defaultFS", "file:///");
+			
+			Path path = new Path(sequenceFileName);
+			RawLocalFileSystem local_fs = new RawLocalFileSystem();
+			local_fs.setConf(conf_local);
+			
+//			SequenceFile.Writer writer = new SequenceFile.Writer(local_fs, conf_local, path, IntWritable.class, Text.class);
+//			SequenceFile.Writer writer = SequenceFile.createWriter(local_fs, conf_local, path, IntWritable.class, Text.class, SequenceFile.CompressionType.BLOCK, new SnappyCodec());
+			SequenceFile.Writer writer = SequenceFile.createWriter(local_fs, conf_local, path, IntWritable.class, Text.class, SequenceFile.CompressionType.BLOCK, new DefaultCodec());
+			
+			int idx = 0;
 			for(String one_doc : target_documents)
 			{
-				target_file_hdfs_out.println(one_doc);
+				value = new Text(one_doc);
+				key = new IntWritable(idx);
+				writer.append(key, value);
+				idx++;
 			}
 			
-			target_file_hdfs_out.close();
-			hdfs_out.close();
-			fileSystem.close();
+			IOUtils.closeStream(writer);
 		}
 		catch(java.lang.Throwable t)
 		{
-			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
-			t.printStackTrace();
-			System.exit(1);
-		}
-	}
-	
-	/*
-	 * Put data to HDFS
-	 * */
-	private static void Put_Data_to_HDFS(String target_path_str, ArrayRealVector target_vector)
-	{
-		Path target_path = new Path(target_path_str);
-		
-		try
-		{
-			FileSystem fileSystem = FileSystem.get(conf);
-			
-			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
-			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
-
-			target_file_hdfs_out.println(gson.toJson(target_vector.getDataRef()));
-			
-			target_file_hdfs_out.close();
-			hdfs_out.close();
-			fileSystem.close();
-		}
-		catch(java.lang.Throwable t)
-		{
-			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
+			System.err.println("Error in writeToSequenceFile_Local function in LDA_DOnline_Driver class");
 			t.printStackTrace();
 			System.exit(1);
 		}
@@ -306,37 +325,175 @@ public class LDA_DOnline_Driver
 	
 	
 	/*
-	 * Put data to HDFS
+	 * Write sequence file to local
+	 * http://noushinb.blogspot.kr/2013/04/reading-writing-hadoop-sequence-files.html
+	 * http://programmer-land.blogspot.kr/2009/04/hadoop-sequence-files.html
 	 * */
-	private static void Put_Data_to_HDFS_split(String target_path_str, Array2DRowRealMatrix target_matrix)
+	private static void writeToSequenceFile_Local(String sequenceFileName, ArrayRealVector target_vector)
 	{
-		Path target_path = new Path(target_path_str);
-		
 		try
 		{
-			FileSystem fileSystem = FileSystem.get(conf);
+			IntWritable key = null;
+			Text value = null;
+			Configuration conf_local = new Configuration();
+			conf_local.set("fs.defaultFS", "file:///");
 			
-			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
-			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+			Path path = new Path(sequenceFileName);
+			RawLocalFileSystem local_fs = new RawLocalFileSystem();
+			local_fs.setConf(conf_local);
+			
+//			SequenceFile.Writer writer = new SequenceFile.Writer(local_fs, conf_local, path, IntWritable.class, Text.class);
+//			SequenceFile.Writer writer = SequenceFile.createWriter(local_fs, conf_local, path, IntWritable.class, Text.class, SequenceFile.CompressionType.BLOCK, new SnappyCodec());
+			SequenceFile.Writer writer = SequenceFile.createWriter(local_fs, conf_local, path, IntWritable.class, Text.class, SequenceFile.CompressionType.BLOCK, new DefaultCodec());
+			
+			value = new Text(gson.toJson(target_vector.getDataRef()));
+			key = new IntWritable(0);
+			writer.append(key, value);
+			
+			IOUtils.closeStream(writer);
+		}
+		catch(java.lang.Throwable t)
+		{
+			System.err.println("Error in writeToSequenceFile_Local function in LDA_DOnline_Driver class");
+			t.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	
+	/*
+	 * Write sequence file to local
+	 * http://noushinb.blogspot.kr/2013/04/reading-writing-hadoop-sequence-files.html
+	 * http://programmer-land.blogspot.kr/2009/04/hadoop-sequence-files.html
+	 * */
+	private static void writeToSequenceFile_Local(String sequenceFileName, Array2DRowRealMatrix target_matrix)
+	{
+		try
+		{
+			IntWritable key = null;
+			Text value = null;
+			Configuration conf_local = new Configuration();
+			conf_local.set("fs.defaultFS", "file:///");
+			
+			Path path = new Path(sequenceFileName);
+			RawLocalFileSystem local_fs = new RawLocalFileSystem();
+			local_fs.setConf(conf_local);
+			
+//			SequenceFile.Writer writer = new SequenceFile.Writer(local_fs, conf_local, path, IntWritable.class, Text.class);
+//			SequenceFile.Writer writer = SequenceFile.createWriter(local_fs, conf_local, path, IntWritable.class, Text.class, SequenceFile.CompressionType.BLOCK, new SnappyCodec());
+			SequenceFile.Writer writer = SequenceFile.createWriter(local_fs, conf_local, path, IntWritable.class, Text.class, SequenceFile.CompressionType.BLOCK, new DefaultCodec());
 			
 			int numRows = target_matrix.getRowDimension();
 			
 			for(int row_idx = 0 ; row_idx < numRows ; row_idx++)
 			{
-				target_file_hdfs_out.println(row_idx + "\t" + gson.toJson(target_matrix.getRow(row_idx)));
+				value = new Text(gson.toJson(target_matrix.getRow(row_idx)));
+				key = new IntWritable(row_idx);
+				writer.append(key, value);
 			}
 			
-			target_file_hdfs_out.close();
-			hdfs_out.close();
-			fileSystem.close();
+			IOUtils.closeStream(writer);
 		}
 		catch(java.lang.Throwable t)
 		{
-			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
+			System.err.println("Error in writeToSequenceFile_Local function in LDA_DOnline_Driver class");
 			t.printStackTrace();
 			System.exit(1);
 		}
 	}
+	
+	
+	/*
+	 * Put data to HDFS
+	 * */
+//	private static void Put_Data_to_HDFS(String target_path_str, ArrayList<String> target_documents)
+//	{
+//		Path target_path = new Path(target_path_str);
+//		
+//		try
+//		{
+//			FileSystem fileSystem = FileSystem.get(conf);
+//			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
+//			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+//
+//			for(String one_doc : target_documents)
+//			{
+//				target_file_hdfs_out.println(one_doc);
+//			}
+//			
+//			target_file_hdfs_out.close();
+//			hdfs_out.close();
+//			fileSystem.close();
+//		}
+//		catch(java.lang.Throwable t)
+//		{
+//			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
+//			t.printStackTrace();
+//			System.exit(1);
+//		}
+//	}
+	
+	/*
+	 * Put data to HDFS
+	 * */
+//	private static void Put_Data_to_HDFS(String target_path_str, ArrayRealVector target_vector)
+//	{
+//		Path target_path = new Path(target_path_str);
+//		
+//		try
+//		{
+//			FileSystem fileSystem = FileSystem.get(conf);
+//			
+//			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
+//			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+//
+//			target_file_hdfs_out.println(gson.toJson(target_vector.getDataRef()));
+//			
+//			target_file_hdfs_out.close();
+//			hdfs_out.close();
+//			fileSystem.close();
+//		}
+//		catch(java.lang.Throwable t)
+//		{
+//			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
+//			t.printStackTrace();
+//			System.exit(1);
+//		}
+//	}
+	
+	
+	/*
+	 * Put data to HDFS
+	 * */
+//	private static void Put_Data_to_HDFS_split(String target_path_str, Array2DRowRealMatrix target_matrix)
+//	{
+//		Path target_path = new Path(target_path_str);
+//		
+//		try
+//		{
+//			FileSystem fileSystem = FileSystem.get(conf);
+//			
+//			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
+//			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
+//			
+//			int numRows = target_matrix.getRowDimension();
+//			
+//			for(int row_idx = 0 ; row_idx < numRows ; row_idx++)
+//			{
+//				target_file_hdfs_out.println(row_idx + "\t" + gson.toJson(target_matrix.getRow(row_idx)));
+//			}
+//			
+//			target_file_hdfs_out.close();
+//			hdfs_out.close();
+//			fileSystem.close();
+//		}
+//		catch(java.lang.Throwable t)
+//		{
+//			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
+//			t.printStackTrace();
+//			System.exit(1);
+//		}
+//	}
 	
 	
 	/*
@@ -354,18 +511,27 @@ public class LDA_DOnline_Driver
 		conf.setMapOutputKeyClass(IntWritable.class);
 		conf.setMapOutputValueClass(Text.class);
 		
-		conf.setOutputKeyClass(Text.class);
+//		conf.setOutputKeyClass(Text.class);
+		conf.setOutputKeyClass(IntWritable.class);
 		conf.setOutputValueClass(Text.class);
 
 		conf.setMapperClass(LDA_DOnline_Mapper.LDA_DO_Mapper.class);
 		conf.setCombinerClass(LDA_DOnline_Combiner.LDA_DO_Combiner.class);
 		conf.setReducerClass(LDA_DOnline_Reducer.LDA_DO_Reducer.class);
 
-		conf.setInputFormat(TextInputFormat.class);
-		conf.setOutputFormat(Reducer_MultipleOutputFormat.class);
+//		conf.setInputFormat(TextInputFormat.class);
+//		conf.setOutputFormat(Reducer_MultipleOutputFormat.class);
 //		conf.setOutputFormat(TextOutputFormat.class);
+		conf.setInputFormat(SequenceFileInputFormat.class);
+		conf.setOutputFormat(SequenceFileOutputFormat.class);
 		
-		conf.setCompressMapOutput(true);
+//		conf.setCompressMapOutput(true);
+		conf.set("mapred.compress.map.output", "ture");
+		conf.set("mapred.map.output.compression.codec", "org.apache.hadoop.io.compress.SnappyCodec");
+		conf.set("mapred.output.compress","true");
+		conf.set("mapred.output.compression","org.apache.hadoop.io.compress.SnappyCodec");
+//		conf.set("mapred.output.compression.type", "BLOCK");
+//		conf.setClass("mapred.output.compression.codec", SnappyCodec.class, CompressionCodec.class);
 		
 		conf.set("TopicNum", String.valueOf(TopicNum));
 		conf.set("DocumentNum", String.valueOf((double)DocumentNum));
@@ -441,38 +607,77 @@ public class LDA_DOnline_Driver
 	/*
 	 * Load lambda from HDFS
 	 * */
-	private static void Load_Lambda_kv(String lambda_path_str)
+//	private static void Load_Lambda_kv(String lambda_path_str)
+//	{
+//		// Lambda_kv load
+//		try
+//		{
+//			FileSystem fileSystem = FileSystem.get(conf);
+//			Path lambda_dir_path = new Path(lambda_path_str);
+//			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
+//			String line = null;
+//			String[] line_arr = null;
+//			double[] row_vec = null;
+//
+//			for(FileStatus one_file_s : file_lists)
+//			{
+//				Path lambda_path = one_file_s.getPath();
+//				FSDataInputStream fs = fileSystem.open(lambda_path);
+//				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+//
+//				while ((line = fis.readLine()) != null) 
+//				{
+//					line_arr = line.split("\t");
+//
+//					row_vec = gson.fromJson(line_arr[1], double[].class);
+//
+//					Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+//				}
+//
+//				fis.close();
+//				fs.close();
+//			}
+//		}
+//		catch (Throwable t) 
+//		{
+//			t.printStackTrace();
+//		}
+//	}
+	
+	
+	/*
+	 * Load lambda from HDFS
+	 * */
+	private static void Load_Lambda_kv_Sequencefile(String lambda_path_str)
 	{
 		// Lambda_kv load
 		try
 		{
 			FileSystem fileSystem = FileSystem.get(conf);
 			Path lambda_dir_path = new Path(lambda_path_str);
-			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
-			String line = null;
-			String[] line_arr = null;
+			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Utils.OutputFileUtils.OutputFilesFilter());
 			double[] row_vec = null;
 
 			for(FileStatus one_file_s : file_lists)
 			{
 				Path lambda_path = one_file_s.getPath();
-				FSDataInputStream fs = fileSystem.open(lambda_path);
-				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-
-				while ((line = fis.readLine()) != null) 
+				
+				SequenceFile.Reader reader = new SequenceFile.Reader(fileSystem, lambda_path, conf);
+				
+				IntWritable key = (IntWritable) ReflectionUtils.newInstance(reader.getKeyClass(), conf);
+				Text value = (Text) ReflectionUtils.newInstance(reader.getValueClass(), conf);
+				
+				while (reader.next(key, value)) 
 				{
-					line_arr = line.split("\t");
-
-					row_vec = gson.fromJson(line_arr[1], double[].class);
-
-					Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+					row_vec = gson.fromJson(value.toString(), double[].class);
+					
+					Lambda_kv.setRow(key.get(), row_vec);
 				}
-
-				fis.close();
-				fs.close();
+				
+				IOUtils.closeStream(reader);
 			}
 		}
-		catch (Throwable t) 
+		catch (Throwable t)
 		{
 			t.printStackTrace();
 		}
