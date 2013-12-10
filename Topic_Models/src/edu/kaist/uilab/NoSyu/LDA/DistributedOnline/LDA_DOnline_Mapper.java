@@ -178,48 +178,50 @@ public class LDA_DOnline_Mapper
 			// Lambda_kv load
 			try
 			{
-				Array2DRowRealMatrix Lambda_kv = new Array2DRowRealMatrix(TopicNum, VocaNum);
-				
-				fileSystem = FileSystem.get(job);
-				Path lambda_dir_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
-				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Utils.OutputFileUtils.OutputFilesFilter());
-				double[] row_vec = null;
-				
-				for(FileStatus one_file_s : file_lists)
-				{
-					Path lambda_path = one_file_s.getPath();
-					
-					SequenceFile.Reader reader = new SequenceFile.Reader(fileSystem, lambda_path, job);
-					
-					IntWritable key = (IntWritable) ReflectionUtils.newInstance(reader.getKeyClass(), job);
-					Text value = (Text) ReflectionUtils.newInstance(reader.getValueClass(), job);
-					
-					while (reader.next(key, value)) 
-					{
-						row_vec = gson.fromJson(value.toString(), double[].class);
+				Array2DRowRealMatrix Lambda_kv = Matrix_Functions_ACM3.load_matrix_url(job.get("lambda_url_path"), TopicNum, VocaNum); 
 						
-						Lambda_kv.setRow(key.get(), row_vec);
-					}
-					
-					IOUtils.closeStream(reader);
-					
-					
+//						new Array2DRowRealMatrix(TopicNum, VocaNum);
+//				
+//				fileSystem = FileSystem.get(job);
+//				Path lambda_dir_path = new Path(FileSystem.getDefaultUri(job) + lambda_path_str);
+//				FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Utils.OutputFileUtils.OutputFilesFilter());
+//				double[] row_vec = null;
+//				
+//				for(FileStatus one_file_s : file_lists)
+//				{
 //					Path lambda_path = one_file_s.getPath();
-//					FSDataInputStream fs = fileSystem.open(lambda_path);
-//					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
 //					
-//					while ((line = fis.readLine()) != null) 
+//					SequenceFile.Reader reader = new SequenceFile.Reader(fileSystem, lambda_path, job);
+//					
+//					IntWritable key = (IntWritable) ReflectionUtils.newInstance(reader.getKeyClass(), job);
+//					Text value = (Text) ReflectionUtils.newInstance(reader.getValueClass(), job);
+//					
+//					while (reader.next(key, value)) 
 //					{
-//						line_arr = line.split("\t");
+//						row_vec = gson.fromJson(value.toString(), double[].class);
 //						
-//						row_vec = gson.fromJson(line_arr[1], double[].class);
-//						
-//						Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+//						Lambda_kv.setRow(key.get(), row_vec);
 //					}
 //					
-//					fis.close();
-//					fs.close();
-				}
+//					IOUtils.closeStream(reader);
+//					
+//					
+////					Path lambda_path = one_file_s.getPath();
+////					FSDataInputStream fs = fileSystem.open(lambda_path);
+////					BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
+////					
+////					while ((line = fis.readLine()) != null) 
+////					{
+////						line_arr = line.split("\t");
+////						
+////						row_vec = gson.fromJson(line_arr[1], double[].class);
+////						
+////						Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
+////					}
+////					
+////					fis.close();
+////					fs.close();
+//				}
 				
 				Expectation_Lambda_kv = Matrix_Functions_ACM3.Compute_Dirichlet_Expectation_col(Lambda_kv);
 			}

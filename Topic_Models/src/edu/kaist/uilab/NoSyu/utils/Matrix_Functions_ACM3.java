@@ -6,9 +6,12 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.io.PrintWriter;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.List;
 
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
@@ -18,11 +21,13 @@ import org.apache.commons.math3.linear.RealMatrixChangingVisitor;
 import org.apache.commons.math3.linear.RealMatrixPreservingVisitor;
 import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.linear.RealVectorChangingVisitor;
+import org.apache.commons.math3.linear.RealVectorFormat;
 import org.apache.commons.math3.linear.RealVectorPreservingVisitor;
 import org.apache.commons.math3.random.JDKRandomGenerator;
 import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
 import org.apache.commons.math3.distribution.GammaDistribution;
+import org.apache.http.client.fluent.Request;
 
 public class Matrix_Functions_ACM3 
 {
@@ -1170,7 +1175,40 @@ public class Matrix_Functions_ACM3
 		}
 	}
 	
-	
+	public static Array2DRowRealMatrix load_matrix_url(String matrixURL, int row_cnt, int col_cnt) {
+		Array2DRowRealMatrix output_matrix = null;
+		
+		try
+		{
+			int row_idx = 0;
+			output_matrix = new Array2DRowRealMatrix(row_cnt, col_cnt);
+			
+			URL url = new URL(matrixURL);
+			URLConnection con = url.openConnection();
+			InputStream in_stream = con.getInputStream();
+			
+			BufferedReader in = new BufferedReader(new InputStreamReader(in_stream, "UTF-8"));
+			
+			String line = in.readLine();
+			RealVectorFormat realVectorFormat = new RealVectorFormat();
+			
+			while(line != null)
+			{
+				output_matrix.setRowVector(row_idx, realVectorFormat.parse(line));
+				row_idx++;
+				line = in.readLine();
+			}
+			
+			in.close();
+			in_stream.close();
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+		
+		return output_matrix; 
+	}
 	/*
 	 * 
 	 * */

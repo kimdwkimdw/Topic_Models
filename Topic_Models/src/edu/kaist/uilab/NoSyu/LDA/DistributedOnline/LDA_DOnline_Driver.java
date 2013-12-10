@@ -28,6 +28,7 @@ import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.Utils;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.http.client.fluent.Request;
 
 import com.google.gson.Gson;
 
@@ -114,6 +115,8 @@ public class LDA_DOnline_Driver
 				FileSystem fileSystem = FileSystem.get(conf);
 				fileSystem.delete(new Path(output_dir_path_str), true);
 				fileSystem.close();
+				Load_Lambda_kv_Sequencefile(lambda_path_str);
+				Matrix_Functions_ACM3.saveToFileCSV(Lambda_kv, "lambda_kv.csv");
 			}
 			catch(java.lang.Throwable t)
 			{
@@ -132,7 +135,7 @@ public class LDA_DOnline_Driver
 		// with Lambda
 //		Load_Lambda_kv(output_dir_path_str);
 		Load_Lambda_kv_Sequencefile(output_dir_path_str);
-		ExportResultCSV();
+		ExportResultCSV("DoLDA_result_" + output_file_name + "_topic_" + TopicNum + "_lambda_kv.csv");
 	}
 
 	
@@ -426,11 +429,13 @@ public class LDA_DOnline_Driver
 		conf.set("minibatch_size", String.valueOf((double)minibatch_size));
 		conf.set("eta", String.valueOf(eta));
 		conf.set("convergence_limit", String.valueOf(convergence_limit));
-		conf.set("alpha_path", alpha_path_str);
 		conf.set("Max_Iter", String.valueOf(Max_Iter));
 		
 		conf.set("alpha_path", alpha_path_str);
 		conf.set("lambda_path", lambda_path_str);
+		conf.set("lambda_url_path", "http://uilabctr03.kaist.ac.kr:5555/lambda_kv.csv");
+//		conf.set("lambda_url_path", "http://localhost:4444/lambda_kv.csv");
+		
 		
 		conf.set("VocaNum", String.valueOf(VocaNum));
 		
@@ -455,7 +460,7 @@ public class LDA_DOnline_Driver
 	/*
 	 * Export result to CSV
 	 * */
-	private static void ExportResultCSV()
+	private static void ExportResultCSV(String export_path)
 	{
 		try
 		{
@@ -481,7 +486,10 @@ public class LDA_DOnline_Driver
 			lambda_out.close();
 			
 			// Lambda
-			Matrix_Functions_ACM3.saveToFileCSV(Lambda_kv, "DoLDA_result_" + output_file_name + "_topic_" + TopicNum + "_lambda_kv.csv");
+//			String output_file_path = "DoLDA_result_" + output_file_name + "_topic_" + TopicNum + "_lambda_kv.csv";
+//			Matrix_Functions_ACM3.saveToFileCSV(Lambda_kv, output_file_path);
+//			Lambda_kv = Matrix_Functions_ACM3.load_matrix_txt(output_file_path);
+			Matrix_Functions_ACM3.saveToFileCSV(Lambda_kv, export_path);
 		}
 		catch(java.lang.Throwable t)
 		{
