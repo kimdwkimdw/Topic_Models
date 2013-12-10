@@ -173,26 +173,6 @@ public class LDA_DOnline_Driver
 			
 			conf = new JobConf(LDA_DOnline_Driver.class);
 			
-			// Check Hadoop conf file
-			if(new File("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/core-site.xml").exists())
-			{
-				// HDInsight
-				conf.addResource(new Path("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/core-site.xml"));
-				conf.addResource(new Path("C:/Hadoop/hadoop-1.1.0-SNAPSHOT/conf/hdfs-site.xml"));
-			}
-			else if(new File("/HADOOP_HOME/conf/core-site.xml").exists())
-			{
-				// Hadoop
-				conf.addResource(new Path("/HADOOP_HOME/conf/core-site.xml"));
-				conf.addResource(new Path("/HADOOP_HOME/conf/hdfs-site.xml"));
-			}
-			else
-			{
-				// What?!
-				System.err.println("I don't know where Hadoop conf files.");
-				System.exit(1);
-			}
-			
 			// Delete previous output path
 			try
 			{
@@ -403,98 +383,6 @@ public class LDA_DOnline_Driver
 	}
 	
 	
-	/*
-	 * Put data to HDFS
-	 * */
-//	private static void Put_Data_to_HDFS(String target_path_str, ArrayList<String> target_documents)
-//	{
-//		Path target_path = new Path(target_path_str);
-//		
-//		try
-//		{
-//			FileSystem fileSystem = FileSystem.get(conf);
-//			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
-//			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
-//
-//			for(String one_doc : target_documents)
-//			{
-//				target_file_hdfs_out.println(one_doc);
-//			}
-//			
-//			target_file_hdfs_out.close();
-//			hdfs_out.close();
-//			fileSystem.close();
-//		}
-//		catch(java.lang.Throwable t)
-//		{
-//			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
-//			t.printStackTrace();
-//			System.exit(1);
-//		}
-//	}
-	
-	/*
-	 * Put data to HDFS
-	 * */
-//	private static void Put_Data_to_HDFS(String target_path_str, ArrayRealVector target_vector)
-//	{
-//		Path target_path = new Path(target_path_str);
-//		
-//		try
-//		{
-//			FileSystem fileSystem = FileSystem.get(conf);
-//			
-//			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
-//			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
-//
-//			target_file_hdfs_out.println(gson.toJson(target_vector.getDataRef()));
-//			
-//			target_file_hdfs_out.close();
-//			hdfs_out.close();
-//			fileSystem.close();
-//		}
-//		catch(java.lang.Throwable t)
-//		{
-//			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
-//			t.printStackTrace();
-//			System.exit(1);
-//		}
-//	}
-	
-	
-	/*
-	 * Put data to HDFS
-	 * */
-//	private static void Put_Data_to_HDFS_split(String target_path_str, Array2DRowRealMatrix target_matrix)
-//	{
-//		Path target_path = new Path(target_path_str);
-//		
-//		try
-//		{
-//			FileSystem fileSystem = FileSystem.get(conf);
-//			
-//			FSDataOutputStream hdfs_out = fileSystem.create(target_path, true);
-//			PrintWriter target_file_hdfs_out = new PrintWriter(hdfs_out);
-//			
-//			int numRows = target_matrix.getRowDimension();
-//			
-//			for(int row_idx = 0 ; row_idx < numRows ; row_idx++)
-//			{
-//				target_file_hdfs_out.println(row_idx + "\t" + gson.toJson(target_matrix.getRow(row_idx)));
-//			}
-//			
-//			target_file_hdfs_out.close();
-//			hdfs_out.close();
-//			fileSystem.close();
-//		}
-//		catch(java.lang.Throwable t)
-//		{
-//			System.err.println("Error in Put_Data_to_HDFS function in LDA_DOnline_Driver class");
-//			t.printStackTrace();
-//			System.exit(1);
-//		}
-//	}
-	
 	
 	/*
 	 * Run MapReduce job
@@ -602,47 +490,6 @@ public class LDA_DOnline_Driver
 			System.exit(1);
 		}
 	}
-	
-	
-	/*
-	 * Load lambda from HDFS
-	 * */
-//	private static void Load_Lambda_kv(String lambda_path_str)
-//	{
-//		// Lambda_kv load
-//		try
-//		{
-//			FileSystem fileSystem = FileSystem.get(conf);
-//			Path lambda_dir_path = new Path(lambda_path_str);
-//			FileStatus[] file_lists = fileSystem.listStatus(lambda_dir_path, new Path_filters.Lambda_Filter());
-//			String line = null;
-//			String[] line_arr = null;
-//			double[] row_vec = null;
-//
-//			for(FileStatus one_file_s : file_lists)
-//			{
-//				Path lambda_path = one_file_s.getPath();
-//				FSDataInputStream fs = fileSystem.open(lambda_path);
-//				BufferedReader fis = new BufferedReader(new InputStreamReader(fs));
-//
-//				while ((line = fis.readLine()) != null) 
-//				{
-//					line_arr = line.split("\t");
-//
-//					row_vec = gson.fromJson(line_arr[1], double[].class);
-//
-//					Lambda_kv.setRow(Integer.parseInt(line_arr[0]), row_vec);
-//				}
-//
-//				fis.close();
-//				fs.close();
-//			}
-//		}
-//		catch (Throwable t) 
-//		{
-//			t.printStackTrace();
-//		}
-//	}
 	
 	
 	/*
